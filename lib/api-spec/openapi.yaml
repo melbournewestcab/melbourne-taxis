@@ -1,0 +1,312 @@
+openapi: 3.1.0
+info:
+  # Do not change the title, if the title changes, the import paths will be broken
+  title: Api
+  version: 0.1.0
+  description: Bacchus Marsh Taxi Cab API
+servers:
+  - url: /api
+    description: Base API path
+tags:
+  - name: health
+    description: Health operations
+  - name: bookings
+    description: Booking operations
+paths:
+  /healthz:
+    get:
+      operationId: healthCheck
+      tags: [health]
+      summary: Health check
+      description: Returns server health status
+      responses:
+        "200":
+          description: Healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthStatus"
+  /bookings:
+    post:
+      operationId: createBooking
+      tags: [bookings]
+      summary: Submit a taxi booking
+      description: Submits a booking request and sends email and WhatsApp notification
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateBookingBody"
+      responses:
+        "200":
+          description: Booking submitted successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/BookingResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bookings/otp/send:
+    post:
+      operationId: sendOtp
+      tags: [bookings]
+      summary: Send OTP to mobile number
+      description: Generates a 6-digit OTP and sends it to the provided phone number
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/SendOtpBody"
+      responses:
+        "200":
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/SendOtpResponse"
+        "400":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limited
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bookings/otp/verify:
+    post:
+      operationId: verifyOtp
+      tags: [bookings]
+      summary: Verify OTP for mobile number
+      description: Verifies the 6-digit OTP against the stored value
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/VerifyOtpBody"
+      responses:
+        "200":
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/VerifyOtpResponse"
+        "400":
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /bookings/estimate:
+    post:
+      operationId: estimateFare
+      tags: [bookings]
+      summary: Estimate taxi fare
+      description: Calculates estimated fare based on distance and vehicle type
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/FareEstimateBody"
+      responses:
+        "200":
+          description: Fare estimate
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/FareEstimateResponse"
+components:
+  schemas:
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+      required:
+        - status
+    CreateBookingBody:
+      type: object
+      properties:
+        name:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        pickupAddress:
+          type: string
+        dropoffAddress:
+          type: string
+        vehicleType:
+          type: string
+          enum: [sedan, suv, silver_service, six_seater, maxi_taxi]
+        passengers:
+          type: integer
+          minimum: 1
+          maximum: 13
+        pickupDate:
+          type: string
+        pickupTime:
+          type: string
+        isReturn:
+          type: boolean
+        returnDate:
+          type: string
+          nullable: true
+        returnTime:
+          type: string
+          nullable: true
+        estimatedFare:
+          type: number
+          nullable: true
+        notes:
+          type: string
+          nullable: true
+        distanceKm:
+          type: number
+          nullable: true
+      required:
+        - name
+        - phone
+        - email
+        - pickupAddress
+        - dropoffAddress
+        - vehicleType
+        - passengers
+        - pickupDate
+        - pickupTime
+        - isReturn
+    BookingResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        bookingId:
+          type: string
+      required:
+        - success
+        - message
+        - bookingId
+    FareEstimateBody:
+      type: object
+      properties:
+        distanceKm:
+          type: number
+        vehicleType:
+          type: string
+          enum: [sedan, suv, silver_service, six_seater, maxi_taxi]
+        pickupDate:
+          type: string
+          nullable: true
+        pickupTime:
+          type: string
+          nullable: true
+        tollRoads:
+          type: array
+          items:
+            type: string
+          nullable: true
+          description: Toll roads detected on the route (e.g. "CityLink", "EastLink", "Westgate Tunnel")
+        trafficRatio:
+          type: number
+          nullable: true
+          description: Optional live traffic multiplier from Google Maps (e.g. 1.25 means traffic is 25% slower than baseline)
+      required:
+        - distanceKm
+        - vehicleType
+    FareEstimateResponse:
+      type: object
+      properties:
+        baseFare:
+          type: number
+        surcharge:
+          type: number
+        tollCharges:
+          type: number
+        totalFare:
+          type: number
+        trafficMultiplier:
+          type: number
+        vehicleType:
+          type: string
+        distanceKm:
+          type: number
+        tollRoads:
+          type: array
+          items:
+            type: string
+      required:
+        - baseFare
+        - surcharge
+        - tollCharges
+        - totalFare
+        - trafficMultiplier
+        - vehicleType
+        - distanceKm
+        - tollRoads
+    SendOtpBody:
+      type: object
+      properties:
+        phone:
+          type: string
+      required:
+        - phone
+    SendOtpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+        otp:
+          type: string
+          description: Returned in demo mode; integrate SMS gateway for production
+      required:
+        - success
+        - message
+    VerifyOtpBody:
+      type: object
+      properties:
+        phone:
+          type: string
+        otp:
+          type: string
+      required:
+        - phone
+        - otp
+    VerifyOtpResponse:
+      type: object
+      properties:
+        success:
+          type: boolean
+        message:
+          type: string
+      required:
+        - success
+        - message
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: string
+      required:
+        - error

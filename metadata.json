@@ -1,0 +1,6 @@
+{
+  "name": "Melbourne Taxis",
+  "description": "24/7 online taxi booking, fixed & metered fare calculation, airport transfers, maxi cabs and premium fleet service across all Melbourne suburbs and Victoria.",
+  "requestFramePermissions": ["geolocation"],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5" />
+    <title>Melbourne Taxis | 24/7 Cab Booking & Airport Transfers Melbourne | 0435 304 821</title>
+    <meta name="description" content="Book Melbourne Taxis 24/7 across all Melbourne suburbs. Fast pickups, fixed fares to Melbourne Airport (Tullamarine & Avalon), Maxi Cabs, Silver Service & corporate travel. Call 0435 304 821 or book online." />
+    <meta name="keywords" content="Melbourne taxis, taxi Melbourne, book taxi Melbourne, Melbourne airport taxi, Tullamarine airport transfers, maxi taxi Melbourne, silver service taxi Melbourne, cheap cab Melbourne, 24/7 taxi service Melbourne" />
+    <meta name="theme-color" content="#f97316" />
+
+    <!-- Favicons -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+    <!-- DNS prefetch for external services -->
+    <link rel="dns-prefetch" href="https://nominatim.openstreetmap.org" />
+    <link rel="dns-prefetch" href="https://tile.openstreetmap.org" />
+    <link rel="dns-prefetch" href="https://fonts.googleapis.com" />
+    <link rel="dns-prefetch" href="https://fonts.gstatic.com" />
+
+    <!-- Fonts: Non-blocking asynchronous load with font-display: swap -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" media="print" onload="this.media='all'" />
+    <noscript>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
+    </noscript>
+
+    <!-- Preload hero image with high fetchpriority -->
+    <link rel="preload" as="image" href="/images/hero-taxi.png" fetchpriority="high" />
+
+    <!-- Open Graph / Social -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="Melbourne Taxis | 24/7 Taxi Booking & Airport Transfers | 0435 304 821" />
+    <meta property="og:description" content="Reliable 24/7 taxi booking across Melbourne CBD and all Melbourne suburbs. Fixed airport rates, Maxi Taxis & Silver Service." />
+    <meta property="og:image" content="/images/hero-taxi.png" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="Melbourne Taxis | 24/7 Melbourne Cab Service" />
+    <meta name="twitter:description" content="Fast, reliable taxi service across all Melbourne suburbs, Tullamarine & Avalon Airports. Available 24/7." />
+
+    <!-- Structured Data (Schema.org JSON-LD for TaxiService in Melbourne) -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "TaxiService",
+      "name": "Melbourne Taxis",
+      "telephone": "+61435304821",
+      "description": "24/7 professional taxi service across Greater Melbourne, Melbourne Airport (Tullamarine & Avalon), Maxi Cabs and Silver Service.",
+      "priceRange": "$$",
+      "currenciesAccepted": "AUD",
+      "paymentAccepted": "Cash, Credit Card, EFTPOS, Apple Pay, Google Pay, Cabcharge",
+      "openingHoursSpecification": {
+        "@type": "OpeningHoursSpecification",
+        "dayOfWeek": [
+          "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"
+        ],
+        "opens": "00:00",
+        "closes": "23:59"
+      },
+      "areaServed": {
+        "@type": "AdministrativeArea",
+        "name": "Greater Melbourne, Victoria, Australia"
+      },
+      "serviceArea": {
+        "@type": "GeoCircle",
+        "geoMidpoint": {
+          "@type": "GeoCoordinates",
+          "latitude": -37.8136,
+          "longitude": 144.9631
+        },
+        "geoRadius": "80000"
+      },
+      "provider": {
+        "@type": "LocalBusiness",
+        "name": "Melbourne Taxis",
+        "telephone": "+61435304821"
+      }
+    }
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>

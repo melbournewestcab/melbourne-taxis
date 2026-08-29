@@ -1,0 +1,109 @@
+uploads = []
+
+[[generated]]
+id = "nBEdyiq9WJNnf8_564YiY"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/hero-taxi.png"
+type = "image"
+title = "Hero taxi night city"
+
+[[generated]]
+id = "idO9Z5jZnRT4Zut3__kqk"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/sedan.png"
+type = "image"
+title = "Sedan taxi"
+
+[[generated]]
+id = "37jlpXtEj6ajbo8UWf41a"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/suv.png"
+type = "image"
+title = "SUV taxi"
+
+[[generated]]
+id = "VBvVM4IA1pyRZ9ET8Cl8w"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/silver-service.png"
+type = "image"
+title = "Silver service taxi"
+
+[[generated]]
+id = "8dSVWq2DKiEOXUyDY_WkM"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/six-seater.png"
+type = "image"
+title = "6 Seater taxi"
+
+[[generated]]
+id = "aMSK8FQwn-ymEMUA5J0CZ"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/maxi-taxi.png"
+type = "image"
+title = "Maxi taxi"
+
+[[generated]]
+id = "AC6Atsmo-_wo11HJTpLXg"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-sedan.png"
+type = "image"
+title = "silver camry taxi front angle"
+
+[[generated]]
+id = "UZ_TrSYGCCgo9XNIXabZm"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-suv.png"
+type = "image"
+title = "silver suv taxi front angle"
+
+[[generated]]
+id = "xPMJtiCXVxA8E6G06JY58"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-silver-service.png"
+type = "image"
+title = "silver lexus taxi front angle"
+
+[[generated]]
+id = "0hzP4Cz9K5Te684UGMSXP"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-six-seater.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "IdAw2anG_DxvQ2lDt-Z-o"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-maxi-taxi.png"
+type = "image"
+title = "silver hiace maxi taxi front angle"
+
+[[generated]]
+id = "psuriJTyBOQ-J6e63HZSM"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/logo-badge.png"
+type = "image"
+title = "generated_image"
+
+[[generated]]
+id = "Vki8Z2xwHQKBTN0WAhELT"
+uri = "file://artifacts/bacchus-marsh-taxi/public/logo-icon.png"
+type = "image"
+title = "sleek taxi car icon"
+
+[[outputs]]
+id = "61m7YKo_2YBsOEoOw695O"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-taxi_1.jpg"
+type = "image"
+title = "taxi car, yellow taxi, city cab, vehicle photo"
+
+[[outputs]]
+id = "2kK3izAxUPe8UzioC4D8i"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-taxi_2.jpg"
+type = "image"
+title = "taxi car, yellow taxi, city cab, vehicle photo"
+
+[[outputs]]
+id = "TsI9xY_RUzvrhleAPCWQ5"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-taxi_3.jpg"
+type = "image"
+title = "taxi car, yellow taxi, city cab, vehicle photo"
+
+[[outputs]]
+id = "gF4fIrx_GZVpjOOuEA1qP"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-taxi_4.jpg"
+type = "image"
+title = "taxi car, yellow taxi, city cab, vehicle photo"
+
+[[outputs]]
+id = "U00ahXacMj4H5uIc5dR0Z"
+uri = "file://artifacts/bacchus-marsh-taxi/public/images/fleet-taxi_5.jpg"
+type = "image"
+title = "taxi car, yellow taxi, city cab, vehicle photo"

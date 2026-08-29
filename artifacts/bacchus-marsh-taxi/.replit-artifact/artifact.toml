@@ -1,0 +1,31 @@
+kind = "web"
+previewPath = "/"
+title = "Bacchus Marsh Taxi Cab"
+version = "1.0.0"
+id = "artifacts/bacchus-marsh-taxi"
+router = "path"
+
+[[integratedSkills]]
+name = "react-vite"
+version = "1.0.0"
+
+[[services]]
+name = "web"
+paths = [ "/" ]
+localPort = 22144
+
+[services.development]
+run = "pnpm --filter @workspace/bacchus-marsh-taxi run dev"
+
+[services.production]
+build = [ "pnpm", "--filter", "@workspace/bacchus-marsh-taxi", "run", "build" ]
+publicDir = "artifacts/bacchus-marsh-taxi/dist/public"
+serve = "static"
+
+[[services.production.rewrites]]
+from = "/*"
+to = "/index.html"
+
+[services.env]
+PORT = "22144"
+BASE_PATH = "/"
