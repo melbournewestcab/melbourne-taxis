@@ -261,3 +261,58 @@
     inset: -1px;
   }
 }
+
+/* ── Google Maps Classic Autocomplete (.pac-container) ────────────────────────── */
+.pac-container {
+  background-color: #181b20 !important;
+  border: 1px solid #374151 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 12px 30px -4px rgba(0, 0, 0, 0.6) !important;
+  font-family: inherit !important;
+  z-index: 99999 !important;
+  margin-top: 4px !important;
+}
+
+.pac-item {
+  color: #d1d5db !important;
+  border-top: 1px solid #282d35 !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  cursor: pointer !important;
+  display: flex !important;
+  align-items: center !important;
+}
+
+.pac-item:hover, .pac-item-selected {
+  background-color: #262c35 !important;
+}
+
+.pac-item-query {
+  color: #ffffff !important;
+  font-size: 13px !important;
+  font-weight: 700 !important;
+  padding-right: 4px !important;
+}
+
+.pac-matched {
+  color: #f97316 !important;
+  font-weight: 800 !important;
+}
+
+.pac-icon {
+  filter: invert(0.85) hue-rotate(180deg) !important;
+  margin-right: 8px !important;
+}
+
+.hdpi .pac-logo:after, .pac-logo:after {
+  filter: invert(0.8) !important;
+  padding: 4px 6px !important;
+}
+
+/* Suppress Google Maps broken error banner so fallback displays cleanly */
+.gm-err-container,
+.gm-err-content,
+.gm-err-message,
+[class*="gm-err"] {
+  display: none !important;
+}

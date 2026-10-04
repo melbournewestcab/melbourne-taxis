@@ -3,7 +3,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import * as z from "zod";
 import { Loader } from "@googlemaps/js-api-loader";
-import { Navigation, Loader2, MapPin, Info, Clock, AlertTriangle, CheckCircle2, ShieldCheck, Car, Route, Sparkles } from "lucide-react";
+import { Navigation, Loader2, MapPin, Info, Clock, AlertTriangle, CheckCircle2, ShieldCheck, Car, Route, Sparkles, Plane, X } from "lucide-react";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 
@@ -16,16 +16,24 @@ import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { Spinner } from "@/components/ui/spinner";
 import { Card, CardContent } from "@/components/ui/card";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 
 import { useCreateBooking, useEstimateFare } from "@workspace/api-client-react";
+import { CabchargeIcon } from "@/components/CabchargeIcon";
 
-const GOOGLE_API_KEY = (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) || "";
+const GOOGLE_API_KEY =
+  (import.meta.env.VITE_GOOGLE_MAPS_API_KEY as string) ||
+  "AIzaSyAdFaQS_OS7xD6QkUcvQvCFMIE2UvwG0PQ";
 
 export interface Coordinates {
   lat: number;
   lng: number;
 }
+
+export const MELBOURNE_CENTER: Coordinates = {
+  lat: -37.8136,
+  lng: 144.9631,
+};
 
 const formSchema = z.object({
   name: z.string().min(2, "Name is required"),
@@ -33,13 +41,16 @@ const formSchema = z.object({
   email: z.string().email("Valid email is required"),
   pickupAddress: z.string().min(5, "Pickup address is required"),
   dropoffAddress: z.string().min(5, "Drop-off address is required"),
-  vehicleType: z.enum(["sedan", "suv", "silver_service", "six_seater", "maxi_taxi"], { message: "Select vehicle type" }),
+  vehicleType: z.enum(["sedan", "suv", "silver_service", "six_seater", "maxi_taxi"], {
+    errorMap: () => ({ message: "Please choose a vehicle" }),
+  }),
   passengers: z.coerce.number().min(1).max(10),
   pickupDate: z.string().min(1, "Select pickup date").refine(v => {
     const today = new Date().toISOString().split("T")[0];
     return v >= today;
   }, { message: "Pickup date must be today or in the future" }),
   pickupTime: z.string().min(1, "Select pickup time"),
+  paymentMethod: z.enum(["cash", "card", "cabcharge"]).default("cash"),
   isReturn: z.boolean(),
   returnDate: z.string().optional(),
   returnTime: z.string().optional(),
@@ -97,7 +108,7 @@ function loadGoogleMaps(): Promise<boolean> {
   const loader = new Loader({
     apiKey: GOOGLE_API_KEY,
     version: "weekly",
-    libraries: ["places", "marker", "geometry"],
+    libraries: ["places", "marker", "geometry", "maps"],
   });
   mapsLoaderPromise = loader
     .load()
@@ -107,6 +118,42 @@ function loadGoogleMaps(): Promise<boolean> {
       return false;
     });
   return mapsLoaderPromise;
+}
+
+// Polyline string decoder (standard Google Maps encoding algorithm)
+function decodePolyline(encoded: string): Array<{ lat: number; lng: number }> {
+  if (!encoded) return [];
+  const points: Array<{ lat: number; lng: number }> = [];
+  let index = 0;
+  const len = encoded.length;
+  let lat = 0;
+  let lng = 0;
+
+  while (index < len) {
+    let b: number;
+    let shift = 0;
+    let result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlat = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    lat += dlat;
+
+    shift = 0;
+    result = 0;
+    do {
+      b = encoded.charCodeAt(index++) - 63;
+      result |= (b & 0x1f) << shift;
+      shift += 5;
+    } while (b >= 0x20);
+    const dlng = (result & 1) !== 0 ? ~(result >> 1) : result >> 1;
+    lng += dlng;
+
+    points.push({ lat: lat / 1e5, lng: lng / 1e5 });
+  }
+  return points;
 }
 
 // Haversine distance helper
@@ -121,7 +168,6 @@ function calculateHaversineKm(p1: Coordinates, p2: Coordinates): number {
       Math.sin(dLng / 2) *
       Math.sin(dLng / 2);
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-  // Multiply by 1.28 for realistic road curvature
   return Math.max(1, R * c * 1.28);
 }
 
@@ -148,7 +194,7 @@ function detectTollsFromText(text: string): string[] {
   return Array.from(found);
 }
 
-// ── Address autocomplete input ────────────────────────────────────────────────
+// ── Address autocomplete input (Google Places API New + High-Resilience Fallback) ──
 interface AddressInputProps {
   id: string;
   placeholder: string;
@@ -163,192 +209,336 @@ export interface AddressInputHandle {
   fill: (address: string, coords: Coordinates) => void;
 }
 
+interface PlaceSuggestion {
+  id: string;
+  placeId?: string;
+  mainText: string;
+  secondaryText: string;
+  fullText: string;
+  coords?: Coordinates | null;
+  toPlace?: () => any;
+}
+
 const AddressInput = forwardRef<AddressInputHandle, AddressInputProps>(function AddressInput(
   { id, placeholder, value, onChange, showCurrentLocation, onCurrentLocation, currentLocationLoading },
   ref,
 ) {
+  const containerRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const [suggestions, setSuggestions] = useState<Array<{ display: string; lat: number; lng: number }>>([]);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [searching, setSearching] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
   const onChangeRef = useRef(onChange);
   useEffect(() => { onChangeRef.current = onChange; }, [onChange]);
 
+  const [inputValue, setInputValue] = useState(value || "");
+  const [suggestions, setSuggestions] = useState<PlaceSuggestion[]>([]);
+  const [isOpen, setIsOpen] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+  const [activeIndex, setActiveIndex] = useState(-1);
+
+  // Modern Places API (New) session token
+  const sessionTokenRef = useRef<any>(null);
+  const debounceTimerRef = useRef<any>(null);
+
+  // Sync external value changes
+  useEffect(() => {
+    setInputValue(value || "");
+  }, [value]);
+
   useImperativeHandle(ref, () => ({
     fill(address: string, coords: Coordinates) {
-      if (inputRef.current) inputRef.current.value = address;
+      setInputValue(address);
       setSuggestions([]);
-      setShowDropdown(false);
+      setIsOpen(false);
+      sessionTokenRef.current = null;
       onChangeRef.current(address, coords);
     },
   }));
 
+  // Close dropdown on click outside
   useEffect(() => {
-    if (inputRef.current && document.activeElement !== inputRef.current) {
-      inputRef.current.value = value;
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false);
+        setActiveIndex(-1);
+      }
     }
-  }, [value]);
-
-  // Try Google Autocomplete if available
-  useEffect(() => {
-    let acInstance: any = null;
-    loadGoogleMaps().then((available) => {
-      if (!available || !inputRef.current || !isGoogleMapsAvailable()) return;
-      const g = (window as any).google;
-      if (g?.maps?.places?.Autocomplete) {
-        acInstance = new g.maps.places.Autocomplete(inputRef.current, {
-          componentRestrictions: { country: "au" },
-          fields: ["formatted_address", "geometry"],
-          types: ["geocode", "establishment"],
-        });
-        acInstance.addListener("place_changed", () => {
-          const place = acInstance.getPlace();
-          if (place.formatted_address && place.geometry?.location) {
-            const coords = { lat: place.geometry.location.lat(), lng: place.geometry.location.lng() };
-            onChangeRef.current(place.formatted_address, coords);
-            if (inputRef.current) inputRef.current.value = place.formatted_address;
-            setSuggestions([]);
-            setShowDropdown(false);
-          }
-        });
-      }
-    });
-
+    document.addEventListener("mousedown", handleClickOutside);
     return () => {
-      if (acInstance && isGoogleMapsAvailable()) {
-        try {
-          (window as any).google.maps.event.clearInstanceListeners(acInstance);
-        } catch {
-          // ignore
-        }
-      }
+      document.removeEventListener("mousedown", handleClickOutside);
     };
   }, []);
 
-  // Fallback Nominatim / OpenStreetMap autocomplete search
-  const debounceTimerRef = useRef<any>(null);
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const query = e.target.value;
-    if (!query) {
-      onChange("", null);
+  // Fetch suggestions using server-side Google Places API (New) proxy with Australia bias & fallback
+  const fetchSuggestions = useCallback(async (query: string) => {
+    const trimmed = query.trim();
+    if (!trimmed || trimmed.length < 2) {
       setSuggestions([]);
-      setShowDropdown(false);
+      setIsOpen(false);
+      setIsLoading(false);
       return;
     }
 
-    if (debounceTimerRef.current) clearTimeout(debounceTimerRef.current);
-    debounceTimerRef.current = setTimeout(async () => {
-      if (query.trim().length < 3) return;
-      setSearching(true);
-      try {
-        const res = await fetch(
-          `https://nominatim.openstreetmap.org/search?format=json&countrycodes=au&limit=5&q=${encodeURIComponent(
-            query + " Victoria Australia"
-          )}`
-        );
-        if (res.ok) {
-          const data = await res.json();
-          if (Array.isArray(data) && data.length > 0) {
-            setSuggestions(
-              data.map((item: any) => ({
-                display: item.display_name,
-                lat: parseFloat(item.lat),
-                lng: parseFloat(item.lon),
-              }))
-            );
-            setShowDropdown(true);
-          }
+    setIsLoading(true);
+
+    try {
+      const res = await fetch(`/api/routes/places-autocomplete?input=${encodeURIComponent(trimmed)}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (Array.isArray(data.suggestions) && data.suggestions.length > 0) {
+          const list: PlaceSuggestion[] = data.suggestions.slice(0, 6).map((s: any) => ({
+            id: s.id || s.placeId || Math.random().toString(),
+            placeId: s.placeId,
+            mainText: s.mainText || trimmed,
+            secondaryText: s.secondaryText || "",
+            fullText: s.fullText || s.mainText || trimmed,
+            coords: s.coords || null,
+          }));
+          setSuggestions(list);
+          setIsOpen(true);
+          setIsLoading(false);
+          return;
         }
-      } catch (err) {
-        console.warn("Address search notice:", err);
-      } finally {
-        setSearching(false);
       }
-    }, 400);
-  };
+    } catch {
+      // ignore
+    }
 
-  const handleSelectSuggestion = (s: { display: string; lat: number; lng: number }) => {
-    if (inputRef.current) inputRef.current.value = s.display;
-    onChange(s.display, { lat: s.lat, lng: s.lng });
     setSuggestions([]);
-    setShowDropdown(false);
-  };
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    const handleClickOutside = (ev: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(ev.target as Node) && inputRef.current !== ev.target) {
-        setShowDropdown(false);
-      }
-    };
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+    setIsLoading(false);
   }, []);
 
-  return (
-    <div className="relative">
-      <input
-        ref={inputRef}
-        id={id}
-        type="text"
-        defaultValue={value}
-        placeholder={placeholder}
-        autoComplete="off"
-        className={
-          "flex h-10 w-full rounded-md border border-input bg-input/50 px-3 py-2 text-sm " +
-          "ring-offset-background placeholder:text-muted-foreground " +
-          "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
-          (showCurrentLocation ? "pr-9" : "")
-        }
-        onChange={handleInputChange}
-        onFocus={() => {
-          if (suggestions.length > 0) setShowDropdown(true);
-        }}
-      />
-      {showCurrentLocation && (
-        <button
-          type="button"
-          onClick={onCurrentLocation}
-          title="Use current location"
-          className="absolute right-2.5 top-1/2 -translate-y-1/2 text-primary hover:text-primary/70 transition-colors"
-          aria-label="Use current location"
-        >
-          {currentLocationLoading
-            ? <Loader2 className="w-4 h-4 animate-spin" />
-            : <Navigation className="w-4 h-4" />}
-        </button>
-      )}
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    setInputValue(val);
+    setActiveIndex(-1);
+    onChangeRef.current(val, null);
 
-      {showDropdown && suggestions.length > 0 && (
-        <div
-          ref={dropdownRef}
-          className="absolute left-0 right-0 top-full mt-1 bg-card border border-border rounded-md shadow-xl z-50 overflow-hidden max-h-56 overflow-y-auto"
-        >
-          {suggestions.map((s, idx) => (
+    if (debounceTimerRef.current) {
+      clearTimeout(debounceTimerRef.current);
+    }
+
+    debounceTimerRef.current = setTimeout(() => {
+      fetchSuggestions(val);
+    }, 220);
+  };
+
+  const handleSelectSuggestion = async (item: PlaceSuggestion) => {
+    const fullAddr = item.fullText || item.mainText;
+    setInputValue(fullAddr);
+    setIsOpen(false);
+    setSuggestions([]);
+    setActiveIndex(-1);
+
+    let coords: Coordinates | null = item.coords || null;
+
+    // 1. If toPlace is available, resolve location with place.fetchFields
+    if (item.toPlace) {
+      try {
+        const place = item.toPlace();
+        await place.fetchFields({
+          fields: ["formattedAddress", "displayName", "location"],
+        });
+        if (place.location) {
+          coords = {
+            lat: place.location.lat(),
+            lng: place.location.lng(),
+          };
+        }
+        const resolvedAddress = place.formattedAddress || place.displayName || fullAddr;
+        setInputValue(resolvedAddress);
+        // Consume session token
+        sessionTokenRef.current = null;
+        onChangeRef.current(resolvedAddress, coords);
+        return;
+      } catch (pErr) {
+        console.warn("Places API fetchFields notice:", pErr);
+      }
+    }
+
+    // 2. If placeId is present, resolve via server endpoint
+    if (item.placeId && !coords) {
+      try {
+        const res = await fetch(`/api/routes/place-details?placeId=${encodeURIComponent(item.placeId)}`);
+        if (res.ok) {
+          const detail = await res.json();
+          if (detail.coords) {
+            coords = detail.coords;
+          }
+          const finalAddr = detail.formattedAddress || fullAddr;
+          setInputValue(finalAddr);
+          sessionTokenRef.current = null;
+          onChangeRef.current(finalAddr, coords);
+          return;
+        }
+      } catch (detErr) {
+        console.warn("Place details fallback notice:", detErr);
+      }
+    }
+
+    if (!coords && fullAddr) {
+      try {
+        const geoRes = await fetch(`/api/routes/geocode?address=${encodeURIComponent(fullAddr)}`);
+        if (geoRes.ok) {
+          const geoData = await geoRes.json();
+          if (geoData.coords) {
+            coords = geoData.coords;
+          }
+        }
+      } catch {
+        // ignore
+      }
+    }
+
+    sessionTokenRef.current = null;
+    onChangeRef.current(fullAddr, coords);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (!isOpen || suggestions.length === 0) return;
+
+    if (e.key === "ArrowDown") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev < suggestions.length - 1 ? prev + 1 : 0));
+    } else if (e.key === "ArrowUp") {
+      e.preventDefault();
+      setActiveIndex((prev) => (prev > 0 ? prev - 1 : suggestions.length - 1));
+    } else if (e.key === "Enter") {
+      e.preventDefault();
+      if (activeIndex >= 0 && suggestions[activeIndex]) {
+        handleSelectSuggestion(suggestions[activeIndex]);
+      }
+    } else if (e.key === "Escape") {
+      setIsOpen(false);
+      setActiveIndex(-1);
+    }
+  };
+
+  const handleClear = () => {
+    setInputValue("");
+    setSuggestions([]);
+    setIsOpen(false);
+    sessionTokenRef.current = null;
+    onChangeRef.current("", null);
+    inputRef.current?.focus();
+  };
+
+  return (
+    <div ref={containerRef} className="relative w-full">
+      <div className="relative flex items-center">
+        <input
+          ref={inputRef}
+          id={id}
+          type="text"
+          value={inputValue}
+          placeholder={placeholder}
+          autoComplete="off"
+          spellCheck={false}
+          className={
+            "flex h-10 w-full rounded-md border border-input bg-input/50 px-3 py-2 text-sm " +
+            "ring-offset-background placeholder:text-muted-foreground " +
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring " +
+            (showCurrentLocation ? "pr-16" : "pr-8")
+          }
+          onChange={handleInputChange}
+          onFocus={() => {
+            if (suggestions.length > 0) setIsOpen(true);
+          }}
+          onKeyDown={handleKeyDown}
+        />
+
+        {/* Clear & current location action buttons */}
+        <div className="absolute right-2 top-1/2 -translate-y-1/2 flex items-center gap-1 text-muted-foreground">
+          {isLoading && (
+            <Loader2 className="w-3.5 h-3.5 animate-spin text-muted-foreground" />
+          )}
+
+          {inputValue.length > 0 && !isLoading && (
             <button
-              key={idx}
               type="button"
-              onClick={() => handleSelectSuggestion(s)}
-              className="w-full text-left px-3 py-2.5 text-xs text-foreground hover:bg-secondary flex items-start gap-2 border-b border-border/40 last:border-0 transition-colors"
+              onClick={handleClear}
+              className="p-1 rounded-sm hover:text-foreground hover:bg-accent/40 transition-colors"
+              title="Clear address"
+              aria-label="Clear address"
             >
-              <MapPin className="w-3.5 h-3.5 text-primary shrink-0 mt-0.5" />
-              <span className="line-clamp-2">{s.display}</span>
+              <X className="w-3.5 h-3.5" />
             </button>
-          ))}
+          )}
+
+          {showCurrentLocation && (
+            <button
+              type="button"
+              onClick={onCurrentLocation}
+              title="Use current GPS location"
+              className="p-1 text-primary hover:text-primary/70 transition-colors cursor-pointer rounded-sm hover:bg-primary/10 ml-0.5"
+              aria-label="Use current location"
+            >
+              {currentLocationLoading ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Navigation className="w-4 h-4" />
+              )}
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Classic Google Maps styled dropdown */}
+      {isOpen && suggestions.length > 0 && (
+        <div className="absolute z-50 left-0 right-0 top-full mt-1.5 overflow-hidden rounded-lg border border-border/80 bg-popover/95 backdrop-blur-md shadow-2xl transition-all animate-in fade-in-0 zoom-in-95 duration-100">
+          <ul className="py-1 max-h-64 overflow-y-auto divide-y divide-border/30">
+            {suggestions.map((item, idx) => {
+              const isSelected = idx === activeIndex;
+              return (
+                <li
+                  key={item.id}
+                  className={
+                    "flex items-start gap-2.5 px-3 py-2.5 cursor-pointer text-left transition-colors " +
+                    (isSelected
+                      ? "bg-accent text-accent-foreground"
+                      : "hover:bg-accent/60 text-foreground")
+                  }
+                  onMouseDown={(e) => {
+                    e.preventDefault();
+                    handleSelectSuggestion(item);
+                  }}
+                  onMouseEnter={() => setActiveIndex(idx)}
+                >
+                  <div className="w-6 h-6 rounded-full bg-muted flex items-center justify-center shrink-0 mt-0.5 text-muted-foreground">
+                    <MapPin className="w-3.5 h-3.5" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-foreground truncate">
+                      {item.mainText}
+                    </p>
+                    {item.secondaryText && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {item.secondaryText}
+                      </p>
+                    )}
+                  </div>
+                </li>
+              );
+            })}
+          </ul>
+          <div className="px-3 py-1.5 bg-muted/30 border-t border-border/50 flex items-center justify-end gap-1.5 text-[11px] text-muted-foreground select-none">
+            <span className="text-[10px]">powered by</span>
+            <span className="font-semibold text-foreground tracking-tight">Google</span>
+          </div>
         </div>
       )}
     </div>
   );
 });
 
-// ── Map Display Component (Supports Google Maps + Leaflet Fallback) ───────────
+// ── Map Display Component (Google Maps Routes with Live Traffic + Leaflet Fallback) ──
 interface RouteData {
   km: number;
   tollRoads: string[];
   trafficRatio?: number;
   durationMinutes?: number;
   durationInTrafficMinutes?: number;
+  trafficDelayMinutes?: number;
+  trafficLevel?: string;
+  source?: string;
 }
 
 interface MapProps {
@@ -357,27 +547,48 @@ interface MapProps {
   pickupDate?: string;
   pickupTime?: string;
   onDistance: (data: RouteData) => void;
+  onPickupCoordsChange?: (coords: Coordinates) => void;
+  accuracyMeters?: number | null;
 }
 
-function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime, onDistance }: MapProps) {
+function GoogleMapDisplay({
+  pickupCoords,
+  dropoffCoords,
+  pickupDate,
+  pickupTime,
+  onDistance,
+  onPickupCoordsChange,
+  accuracyMeters,
+}: MapProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
   const [mapType, setMapType] = useState<"google" | "leaflet" | "loading">("loading");
-  
+
   // Google Map refs
   const gMapRef = useRef<any>(null);
+  const gTrafficLayerRef = useRef<any>(null);
   const gPickupMarkerRef = useRef<any>(null);
   const gDropoffMarkerRef = useRef<any>(null);
-  const gDirRendererRef = useRef<any>(null);
-  const gDirSvcRef = useRef<any>(null);
+  const gPolylineRef = useRef<any>(null);
+  const gAccuracyCircleRef = useRef<any>(null);
 
   // Leaflet Map refs
   const lMapRef = useRef<L.Map | null>(null);
   const lPickupMarkerRef = useRef<L.CircleMarker | null>(null);
   const lDropoffMarkerRef = useRef<L.CircleMarker | null>(null);
   const lRouteLayerRef = useRef<L.Polyline | null>(null);
+  const lAccuracyCircleRef = useRef<L.Circle | null>(null);
 
   useEffect(() => {
     let isMounted = true;
+
+    // Listen for Google Maps auth failure
+    if (typeof window !== "undefined") {
+      (window as any).gm_authFailure = () => {
+        console.warn("Google Maps auth failure detected, switching to Leaflet map");
+        if (isMounted) setMapType("leaflet");
+      };
+    }
+
     loadGoogleMaps().then((available) => {
       if (!isMounted) return;
       if (available && isGoogleMapsAvailable()) {
@@ -386,12 +597,13 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
         setMapType("leaflet");
       }
     });
+
     return () => {
       isMounted = false;
     };
   }, []);
 
-  // ── Initialize Google Maps if available ─────────────────────────────────────
+  // ── Initialize Google Maps with TrafficLayer ────────────────────────────────
   useEffect(() => {
     if (mapType !== "google" || !mapContainerRef.current || gMapRef.current) return;
     if (!isGoogleMapsAvailable()) {
@@ -400,130 +612,237 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
     }
     try {
       const g = (window as any).google;
-      gMapRef.current = new g.maps.Map(mapContainerRef.current, {
-        center: { lat: -37.6766, lng: 144.4386 },
-        zoom: 12,
+      const map = new g.maps.Map(mapContainerRef.current, {
+        center: MELBOURNE_CENTER,
+        zoom: 11,
+        mapId: "DEMO_MAP_ID",
         mapTypeControl: false,
         streetViewControl: false,
         fullscreenControl: false,
       });
-      gDirSvcRef.current = new g.maps.DirectionsService();
-      gDirRendererRef.current = new g.maps.DirectionsRenderer({
-        map: gMapRef.current,
-        suppressMarkers: true,
-        polylineOptions: {
-          strokeColor: "#f97316",
-          strokeWeight: 5,
-          strokeOpacity: 0.9,
-        },
+
+      // Mount real-time Google TrafficLayer for live road conditions
+      try {
+        const trafficLayer = new g.maps.TrafficLayer();
+        trafficLayer.setMap(map);
+        gTrafficLayerRef.current = trafficLayer;
+      } catch (tErr) {
+        console.warn("Traffic layer notice:", tErr);
+      }
+
+      // Check if Google Maps inserted an error message in DOM
+      const errorCheckTimer = setInterval(() => {
+        if (!mapContainerRef.current) return;
+        const errElem = mapContainerRef.current.querySelector(".gm-err-container, .gm-err-message, [class*='gm-err']");
+        if (errElem) {
+          console.warn("Google Maps error container found, switching seamlessly to Leaflet map");
+          clearInterval(errorCheckTimer);
+          setMapType("leaflet");
+        }
+      }, 400);
+      setTimeout(() => clearInterval(errorCheckTimer), 4000);
+
+      // Allow clicking on map to place or fine-tune pickup doorstep pin
+      map.addListener("click", (event: any) => {
+        const lat = event.latLng ? event.latLng.lat() : null;
+        const lng = event.latLng ? event.latLng.lng() : null;
+        if (typeof lat === "number" && typeof lng === "number" && onPickupCoordsChange) {
+          onPickupCoordsChange({ lat, lng });
+        }
       });
+
+      gMapRef.current = map;
     } catch (e) {
       console.warn("Failed initializing Google Maps, switching to Leaflet:", e);
       setMapType("leaflet");
     }
-  }, [mapType]);
+  }, [mapType, onPickupCoordsChange]);
 
-  // Update Google Maps markers + route
+  // Update Google Maps markers + Routes API calculation
   useEffect(() => {
     if (mapType !== "google" || !gMapRef.current || !isGoogleMapsAvailable()) return;
     const g = (window as any).google;
     const map = gMapRef.current;
 
-    if (gPickupMarkerRef.current) { gPickupMarkerRef.current.setMap?.(null); gPickupMarkerRef.current = null; }
-    if (gDropoffMarkerRef.current) { gDropoffMarkerRef.current.setMap?.(null); gDropoffMarkerRef.current = null; }
-
-    const makeDot = (color: string) => ({
-      path: g.maps.SymbolPath.CIRCLE,
-      fillColor: color,
-      fillOpacity: 1,
-      strokeColor: "#ffffff",
-      strokeWeight: 2,
-      scale: 8,
-    });
-
-    if (pickupCoords) {
-      gPickupMarkerRef.current = new g.maps.Marker({
-        map,
-        position: pickupCoords,
-        icon: makeDot("#f97316"),
-        title: "Pickup",
-      });
+    // Clear previous markers & circles
+    if (gPickupMarkerRef.current) {
+      gPickupMarkerRef.current.map = null;
+      gPickupMarkerRef.current = null;
+    }
+    if (gDropoffMarkerRef.current) {
+      gDropoffMarkerRef.current.map = null;
+      gDropoffMarkerRef.current = null;
+    }
+    if (gPolylineRef.current) {
+      gPolylineRef.current.setMap(null);
+      gPolylineRef.current = null;
+    }
+    if (gAccuracyCircleRef.current) {
+      gAccuracyCircleRef.current.setMap(null);
+      gAccuracyCircleRef.current = null;
     }
 
-    if (dropoffCoords) {
-      gDropoffMarkerRef.current = new g.maps.Marker({
-        map,
-        position: dropoffCoords,
-        icon: makeDot("#111827"),
-        title: "Drop-off",
-      });
-    }
-
-    if (pickupCoords && dropoffCoords && gDirSvcRef.current && gDirRendererRef.current) {
-      const routeOpts: any = {
-        origin: pickupCoords,
-        destination: dropoffCoords,
-        travelMode: g.maps.TravelMode.DRIVING,
-        provideRouteAlternatives: false,
-      };
-
-      // Always request traffic model for live traffic calculations
-      let departureDate = new Date();
-      if (pickupDate && pickupTime) {
-        const ts = new Date(`${pickupDate}T${pickupTime}`);
-        if (!isNaN(ts.getTime()) && ts.getTime() > Date.now()) {
-          departureDate = ts;
-        }
+    // Add GPS precision radius circle
+    if (pickupCoords && typeof accuracyMeters === "number" && accuracyMeters > 0) {
+      try {
+        gAccuracyCircleRef.current = new g.maps.Circle({
+          map,
+          center: pickupCoords,
+          radius: Math.min(accuracyMeters, 250),
+          fillColor: "#f97316",
+          fillOpacity: 0.12,
+          strokeColor: "#ea580c",
+          strokeOpacity: 0.45,
+          strokeWeight: 1.5,
+        });
+      } catch (cErr) {
+        console.warn("Accuracy circle notice:", cErr);
       }
-      routeOpts.drivingOptions = {
-        departureTime: departureDate,
-        trafficModel: g.maps.TrafficModel.BEST_GUESS,
-      };
+    }
 
-      gDirSvcRef.current.route(routeOpts, (result: any, status: any) => {
-        if (status !== g.maps.DirectionsStatus.OK || !result) return;
-        const leg = result.routes[0]?.legs[0];
-        if (!leg) return;
-
-        gDirRendererRef.current.setDirections(result);
-
-        const km = (leg.distance?.value ?? 0) / 1000;
-        if (km > 0) {
-          const durMins = leg.duration?.value ? Math.round(leg.duration.value / 60) : Math.round((km / 50) * 60);
-          const trafficDurMins = leg.duration_in_traffic?.value ? Math.round(leg.duration_in_traffic.value / 60) : durMins;
-          let trafficRatio: number = 1.0;
-          if (leg.duration_in_traffic && leg.duration && leg.duration.value > 0) {
-            trafficRatio = leg.duration_in_traffic.value / leg.duration.value;
+    // Add AdvancedMarkerElement or fallback Pin (with interactive dragging for 100% pinpoint accuracy)
+    const markerLib = g.maps.marker;
+    if (markerLib?.AdvancedMarkerElement && markerLib?.PinElement) {
+      if (pickupCoords) {
+        const pin = new markerLib.PinElement({
+          background: "#f97316",
+          borderColor: "#c2410c",
+          glyphColor: "#ffffff",
+          scale: 1.15,
+        });
+        const marker = new markerLib.AdvancedMarkerElement({
+          map,
+          position: pickupCoords,
+          title: "Pickup Location (Drag to adjust doorstep)",
+          content: pin.element,
+          gmpDraggable: true,
+        });
+        marker.addListener("dragend", (event: any) => {
+          const lat = event.latLng ? event.latLng.lat() : (marker.position as any)?.lat;
+          const lng = event.latLng ? event.latLng.lng() : (marker.position as any)?.lng;
+          if (typeof lat === "number" && typeof lng === "number" && onPickupCoordsChange) {
+            onPickupCoordsChange({ lat, lng });
           }
-          const allText = [result.routes[0]?.summary, ...(leg.steps || []).map((s: any) => s.instructions)].join(" ");
+        });
+        gPickupMarkerRef.current = marker;
+      }
+      if (dropoffCoords) {
+        const pin = new markerLib.PinElement({
+          background: "#111827",
+          borderColor: "#000000",
+          glyphColor: "#f97316",
+          scale: 1.1,
+        });
+        gDropoffMarkerRef.current = new markerLib.AdvancedMarkerElement({
+          map,
+          position: dropoffCoords,
+          title: "Drop-off Location",
+          content: pin.element,
+        });
+      }
+    } else if (pickupCoords || dropoffCoords) {
+      // If AdvancedMarkerElement is not available, switch smoothly to Leaflet
+      setMapType("leaflet");
+    }
+
+    // Route calculation with Live Traffic
+    if (pickupCoords && dropoffCoords) {
+      fetch("/api/routes/compute", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          origin: pickupCoords,
+          destination: dropoffCoords,
+          pickupDate,
+          pickupTime,
+        }),
+      })
+        .then((res) => res.json())
+        .then((routeResult) => {
+          if (!routeResult || routeResult.error) {
+            throw new Error(routeResult?.error || "Routing failed");
+          }
+
+          const {
+            distanceKm,
+            durationMinutes,
+            staticDurationMinutes,
+            trafficDelayMinutes,
+            trafficRatio,
+            trafficLevel,
+            encodedPolyline,
+            tollRoads,
+            source,
+          } = routeResult;
+
+          // Draw Route Polyline
+          let points: Array<{ lat: number; lng: number }> = [];
+          if (encodedPolyline) {
+            points = decodePolyline(encodedPolyline);
+          } else {
+            points = [pickupCoords, dropoffCoords];
+          }
+
+          if (points.length > 0) {
+            if (gPolylineRef.current) gPolylineRef.current.setMap(null);
+            gPolylineRef.current = new g.maps.Polyline({
+              path: points,
+              geodesic: true,
+              strokeColor: "#f97316",
+              strokeOpacity: 0.9,
+              strokeWeight: 6,
+              map,
+            });
+
+            const bounds = new g.maps.LatLngBounds();
+            points.forEach((p) => bounds.extend(p));
+            map.fitBounds(bounds, { top: 40, right: 40, bottom: 40, left: 40 });
+          }
+
+          onDistance({
+            km: distanceKm,
+            tollRoads: tollRoads || [],
+            trafficRatio: trafficRatio || 1.0,
+            durationMinutes: staticDurationMinutes || durationMinutes,
+            durationInTrafficMinutes: durationMinutes,
+            trafficDelayMinutes: trafficDelayMinutes || 0,
+            trafficLevel: trafficLevel || "Normal Flow",
+            source: source || "google_routes_api",
+          });
+        })
+        .catch((err) => {
+          console.warn("Live route fetch error, using fallback:", err);
+          const km = calculateHaversineKm(pickupCoords, dropoffCoords);
+          const durMins = Math.round((km / 50) * 60);
           onDistance({
             km,
-            tollRoads: detectTollsFromText(allText),
-            trafficRatio,
+            tollRoads: detectTollsFromText(""),
+            trafficRatio: 1.0,
             durationMinutes: durMins,
-            durationInTrafficMinutes: trafficDurMins,
+            durationInTrafficMinutes: durMins,
+            trafficDelayMinutes: 0,
+            trafficLevel: "Normal Flow",
+            source: "haversine",
           });
-        }
-
-        const bounds = new g.maps.LatLngBounds();
-        bounds.extend(pickupCoords);
-        bounds.extend(dropoffCoords);
-        map.fitBounds(bounds, 60);
-      });
+        });
     } else {
-      gDirRendererRef.current?.setDirections({ routes: [] });
-      if (pickupCoords) { map.setCenter(pickupCoords); map.setZoom(14); }
-      else if (dropoffCoords) { map.setCenter(dropoffCoords); map.setZoom(14); }
+      if (pickupCoords) {
+        map.setCenter(pickupCoords);
+        map.setZoom(17);
+      } else if (dropoffCoords) {
+        map.setCenter(dropoffCoords);
+        map.setZoom(15);
+      }
     }
-  }, [pickupCoords, dropoffCoords, pickupDate, pickupTime, mapType, onDistance]);
+  }, [pickupCoords, dropoffCoords, pickupDate, pickupTime, mapType, onDistance, onPickupCoordsChange]);
 
   // ── Initialize Leaflet if Google Maps is not available ──────────────────────
   useEffect(() => {
     if (mapType !== "leaflet" || !mapContainerRef.current || lMapRef.current) return;
 
     const map = L.map(mapContainerRef.current, {
-      center: [-37.6766, 144.4386],
-      zoom: 12,
+      center: [MELBOURNE_CENTER.lat, MELBOURNE_CENTER.lng],
+      zoom: 11,
       zoomControl: false,
     });
 
@@ -534,13 +853,19 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
       maxZoom: 19,
     }).addTo(map);
 
+    map.on("click", (e: L.LeafletMouseEvent) => {
+      if (onPickupCoordsChange) {
+        onPickupCoordsChange({ lat: e.latlng.lat, lng: e.latlng.lng });
+      }
+    });
+
     lMapRef.current = map;
 
     return () => {
       map.remove();
       lMapRef.current = null;
     };
-  }, [mapType]);
+  }, [mapType, onPickupCoordsChange]);
 
   // Update Leaflet markers + route
   useEffect(() => {
@@ -550,6 +875,17 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
     if (lPickupMarkerRef.current) { lPickupMarkerRef.current.remove(); lPickupMarkerRef.current = null; }
     if (lDropoffMarkerRef.current) { lDropoffMarkerRef.current.remove(); lDropoffMarkerRef.current = null; }
     if (lRouteLayerRef.current) { lRouteLayerRef.current.remove(); lRouteLayerRef.current = null; }
+    if (lAccuracyCircleRef.current) { lAccuracyCircleRef.current.remove(); lAccuracyCircleRef.current = null; }
+
+    if (pickupCoords && typeof accuracyMeters === "number" && accuracyMeters > 0) {
+      lAccuracyCircleRef.current = L.circle([pickupCoords.lat, pickupCoords.lng], {
+        radius: Math.min(accuracyMeters, 250),
+        fillColor: "#f97316",
+        fillOpacity: 0.12,
+        color: "#ea580c",
+        weight: 1.5,
+      }).addTo(map);
+    }
 
     if (pickupCoords) {
       lPickupMarkerRef.current = L.circleMarker([pickupCoords.lat, pickupCoords.lng], {
@@ -559,7 +895,7 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
         weight: 3,
         opacity: 1,
         fillOpacity: 1,
-      }).addTo(map).bindPopup("Pickup Location");
+      }).addTo(map).bindPopup("Pickup Location (Drag or tap map to adjust)");
     }
 
     if (dropoffCoords) {
@@ -574,7 +910,6 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
     }
 
     if (pickupCoords && dropoffCoords) {
-      // Fetch driving route from OSRM
       const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${pickupCoords.lng},${pickupCoords.lat};${dropoffCoords.lng},${dropoffCoords.lat}?overview=full&geometries=geojson`;
 
       fetch(osrmUrl)
@@ -603,13 +938,15 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
               trafficRatio: 1.0,
               durationMinutes: durMins,
               durationInTrafficMinutes: durMins,
+              trafficDelayMinutes: 0,
+              trafficLevel: "Normal Flow",
+              source: "osrm",
             });
           } else {
             throw new Error("No route found");
           }
         })
         .catch(() => {
-          // Haversine fallback if OSRM fails
           const km = calculateHaversineKm(pickupCoords, dropoffCoords);
           const durMins = Math.round((km / 45) * 60);
           const line = [[pickupCoords.lat, pickupCoords.lng], [dropoffCoords.lat, dropoffCoords.lng]] as [number, number][];
@@ -629,10 +966,13 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
             trafficRatio: 1.0,
             durationMinutes: durMins,
             durationInTrafficMinutes: durMins,
+            trafficDelayMinutes: 0,
+            trafficLevel: "Normal Flow",
+            source: "haversine",
           });
         });
     } else if (pickupCoords) {
-      map.setView([pickupCoords.lat, pickupCoords.lng], 14);
+      map.setView([pickupCoords.lat, pickupCoords.lng], 17);
     } else if (dropoffCoords) {
       map.setView([dropoffCoords.lat, dropoffCoords.lng], 14);
     }
@@ -642,7 +982,7 @@ function GoogleMapDisplay({ pickupCoords, dropoffCoords, pickupDate, pickupTime,
     <div
       ref={mapContainerRef}
       style={{ height: "100%", width: "100%", minHeight: "380px" }}
-      className="rounded-lg z-0"
+      className="rounded-lg z-0 relative"
     />
   );
 }
@@ -654,7 +994,7 @@ interface BookingFormProps {
   showMinimumPopup?: boolean;
 }
 
-export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true, showMinimumPopup }: BookingFormProps) {
+export function BookingForm({ initialVehicle = "", showMinimumToast = true, showMinimumPopup }: BookingFormProps) {
   const { toast } = useToast();
   const createBooking = useCreateBooking();
   const estimateFare = useEstimateFare();
@@ -687,20 +1027,36 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
     };
   } | null>(null);
   const [locating, setLocating] = useState(false);
+  const [pickupAccuracy, setPickupAccuracy] = useState<number | null>(null);
   const [showFareDialog, setShowFareDialog] = useState(false);
   const [showMinimumDialog, setShowMinimumDialog] = useState(false);
   const [showRateCardDialog, setShowRateCardDialog] = useState(false);
+  const [confirmedBooking, setConfirmedBooking] = useState<{
+    bookingId: string;
+    name: string;
+    phone: string;
+    pickupAddress: string;
+    dropoffAddress: string;
+    pickupDate: string;
+    pickupTime: string;
+    vehicleType: string;
+    passengers: number;
+    fare?: number;
+    paymentMethod: string;
+  } | null>(null);
   const pickupInputRef = useRef<AddressInputHandle>(null);
+  const dropoffInputRef = useRef<AddressInputHandle>(null);
 
   const form = useForm<FormData>({
     resolver: zodResolver(formSchema),
     defaultValues: {
       name: "", phone: "", email: "",
       pickupAddress: "", dropoffAddress: "",
-      vehicleType: (initialVehicle || "sedan") as any,
+      vehicleType: (initialVehicle || "") as any,
       passengers: 1,
       pickupDate: "",
       pickupTime: "",
+      paymentMethod: "cash",
       isReturn: false, returnDate: "", returnTime: "", notes: ""
     }
   });
@@ -710,6 +1066,7 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
   const passengers = form.watch("passengers");
   const pickupDate = form.watch("pickupDate");
   const pickupTime = form.watch("pickupTime");
+  const paymentMethod = form.watch("paymentMethod");
 
   const [trafficRatio, setTrafficRatio] = useState<number | undefined>(undefined);
   const handleDistance = useCallback((data: RouteData) => {
@@ -721,7 +1078,12 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
 
   // Run fare estimate when distance and vehicle are available
   useEffect(() => {
-    if (!distanceKm || !vehicleType) return;
+    if (!distanceKm || !vehicleType) {
+      if (!vehicleType) {
+        setFareEstimate(null);
+      }
+      return;
+    }
 
     // Use selected date/time or fallback to current time for live estimate
     const now = new Date();
@@ -737,7 +1099,10 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
           pickupTime: effectiveTime,
           tollRoads: detectedTollRoads,
           trafficRatio: trafficRatio ?? null,
-        },
+          passengers: passengers || 1,
+          durationMinutes: routeData?.durationMinutes,
+          durationInTrafficMinutes: routeData?.durationInTrafficMinutes,
+        } as any,
       },
       {
         onSuccess: (data: any) => {
@@ -746,26 +1111,24 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
             flagFall: data.flagFall ?? 0,
             distanceCharge: data.distanceCharge ?? 0,
             timeCharge: data.timeCharge ?? 0,
-            cpvLevy: data.cpvLevy ?? 1.30,
+            cpvLevy: data.cpvLevy ?? 1.35,
             minimumFare: data.minimumFare ?? 0,
             vehicleSurcharge: data.vehicleSurcharge ?? 0,
             tollCharges: data.tollCharges ?? 0,
             tollRoads: data.tollRoads ?? [],
             rateLabel: data.rateLabel ?? "Day Rate",
             rateType: data.rateType ?? "day",
-            durationMinutes: data.durationMinutes ?? routeData?.durationInTrafficMinutes,
-            trafficDelayMinutes: data.trafficDelayMinutes ?? 0,
+            durationMinutes: data.durationMinutes ?? routeData?.durationInTrafficMinutes ?? routeData?.durationMinutes,
+            trafficDelayMinutes: data.trafficDelayMinutes ?? routeData?.trafficDelayMinutes ?? 0,
             slowMinutes: data.slowMinutes ?? 0,
-            trafficLevel: data.trafficLevel ?? "Normal Flow",
+            trafficLevel: data.trafficLevel ?? routeData?.trafficLevel ?? "Normal Flow",
             ratesSchedule: data.ratesSchedule ?? {
-              flagFall: 5.40,
-              perKm: 2.10,
-              perMin: 0.70,
+              flagFall: 5.25,
+              perKm: 2.037,
+              perMin: 0.713,
             },
           });
-          if (pickupDate && pickupTime) {
-            setShowFareDialog(true);
-          }
+          setShowFareDialog(true);
         },
       }
     );
@@ -786,63 +1149,182 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
     setShowMinimumDialog(true);
   }, [showMinimumToast, showMinimumPopup]);
 
-  // Current location → reverse geocode → fill pickup field
+  // Interactive pin adjustment from map drag or map click
+  const handlePickupCoordsChange = useCallback(async (newCoords: Coordinates) => {
+    setPickupCoords(newCoords);
+    setPickupAccuracy(5); // Precision lock on doorstep
+    try {
+      const res = await fetch(`/api/routes/reverse-geocode?lat=${newCoords.lat}&lng=${newCoords.lng}`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.address) {
+          pickupInputRef.current?.fill(data.address, newCoords);
+          form.setValue("pickupAddress", data.address, { shouldValidate: true });
+          toast({ title: "Pickup pin adjusted", description: data.address, duration: 3500 });
+        }
+      }
+    } catch {
+      // ignore
+    }
+  }, [form, toast]);
+
+  // High-accuracy live GPS location detection with multi-sample satellite lock
   const handleCurrentLocation = useCallback(() => {
     if (!navigator.geolocation) {
       toast({ title: "Not supported", description: "Your browser doesn't support location access.", variant: "destructive" });
       return;
     }
     setLocating(true);
-    navigator.geolocation.getCurrentPosition(
-      async (pos) => {
-        const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
-        let address = `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)}`;
+    toast({ title: "Detecting location...", description: "Locating your current address." });
 
-        if (isGoogleMapsAvailable()) {
-          try {
-            const g = (window as any).google;
-            new g.maps.Geocoder().geocode({ location: coords }, (results: any, status: any) => {
-              setLocating(false);
-              if (status === "OK" && results?.[0]) {
-                address = results[0].formatted_address;
-              }
-              pickupInputRef.current?.fill(address, coords);
-              form.setValue("pickupAddress", address, { shouldValidate: true });
-              toast({ title: "Location detected", description: address, duration: 4000 });
+    let bestPos: GeolocationPosition | null = null;
+    let bestAccuracy = Infinity;
+    let settled = false;
+
+    const processFinalCoords = async (pos: GeolocationPosition) => {
+      if (settled) return;
+      settled = true;
+      setLocating(false);
+
+      const coords = { lat: pos.coords.latitude, lng: pos.coords.longitude };
+      const accuracyMeters = Math.round(pos.coords.accuracy || 0);
+      setPickupAccuracy(accuracyMeters);
+
+      // 1. Primary: Server reverse geocoding with exact house number + street name
+      try {
+        const res = await fetch(`/api/routes/reverse-geocode?lat=${coords.lat}&lng=${coords.lng}`);
+        if (res.ok) {
+          const data = await res.json();
+          if (data?.address && typeof data.address === "string" && !data.address.includes("NaN")) {
+            setPickupCoords(coords);
+            pickupInputRef.current?.fill(data.address, coords);
+            form.setValue("pickupAddress", data.address, { shouldValidate: true });
+            toast({
+              title: "Location detected",
+              description: data.address,
+              duration: 4000,
             });
             return;
-          } catch {
-            // fallback to nominatim
           }
         }
+      } catch (serverErr) {
+        console.warn("Server reverse geocode notice:", serverErr);
+      }
 
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}`);
-          if (res.ok) {
-            const data = await res.json();
-            if (data?.display_name) {
-              address = data.display_name;
+      // 2. Fallback: Direct Nominatim with address details
+      try {
+        const res = await fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${coords.lat}&lon=${coords.lng}&addressdetails=1`);
+        if (res.ok) {
+          const data = await res.json();
+          const addr = data.address || {};
+          const road = addr.road || addr.street || "";
+          const houseNo = addr.house_number || "";
+          const suburb = addr.suburb || addr.town || addr.city || "";
+          const postcode = addr.postcode || "";
+          let formatted = "";
+          if (road && suburb) {
+            formatted = `${houseNo ? houseNo + " " : ""}${road}, ${suburb} VIC ${postcode}`.trim();
+          } else if (data.display_name) {
+            formatted = data.display_name.split(", ").slice(0, 4).join(", ");
+          }
+          if (formatted) {
+            setPickupCoords(coords);
+            pickupInputRef.current?.fill(formatted, coords);
+            form.setValue("pickupAddress", formatted, { shouldValidate: true });
+            toast({ title: "Location detected", description: formatted, duration: 4000 });
+            return;
+          }
+        }
+      } catch {
+        // ignore
+      }
+
+      // 3. Safe fallback using actual GPS coordinates
+      const fallbackAddress = `${coords.lat.toFixed(5)}, ${coords.lng.toFixed(5)} (Current Location)`;
+      setPickupCoords(coords);
+      pickupInputRef.current?.fill(fallbackAddress, coords);
+      form.setValue("pickupAddress", fallbackAddress, { shouldValidate: true });
+      toast({ title: "Location pinned", description: "Coordinates marked on map.", duration: 4000 });
+    };
+
+    let watchId: number | null = null;
+    let timeoutTimer: any = null;
+
+    try {
+      // 1. Instant high-accuracy location request
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          bestPos = pos;
+          bestAccuracy = pos.coords.accuracy;
+          if (pos.coords.accuracy <= 35) {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (timeoutTimer) clearTimeout(timeoutTimer);
+            processFinalCoords(pos);
+          }
+        },
+        (err) => {
+          console.warn("getCurrentPosition notice:", err);
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
+      );
+
+      // 2. Refinement watch to lock best satellite fix
+      watchId = navigator.geolocation.watchPosition(
+        (pos) => {
+          const acc = pos.coords.accuracy;
+          if (acc < bestAccuracy) {
+            bestPos = pos;
+            bestAccuracy = acc;
+          }
+          if (acc <= 25) {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (timeoutTimer) clearTimeout(timeoutTimer);
+            processFinalCoords(pos);
+          }
+        },
+        (err) => {
+          if (!settled && !bestPos) {
+            if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+            if (timeoutTimer) clearTimeout(timeoutTimer);
+            setLocating(false);
+            if (err.code === err.PERMISSION_DENIED) {
+              toast({ title: "Location access denied", description: "Please enable location permission in browser.", variant: "destructive" });
+            } else {
+              toast({ title: "Location unavailable", description: "Please type your pickup address or tap on the map.", variant: "destructive" });
             }
           }
-        } catch {
-          // use lat,lng string
-        }
+        },
+        { enableHighAccuracy: true, maximumAge: 5000, timeout: 8000 }
+      );
 
-        setLocating(false);
-        pickupInputRef.current?.fill(address, coords);
-        form.setValue("pickupAddress", address, { shouldValidate: true });
-        toast({ title: "Location detected", description: address, duration: 4000 });
-      },
-      (err) => {
-        setLocating(false);
-        if (err.code === err.PERMISSION_DENIED) {
-          toast({ title: "Location access denied", description: "Please enable location access in your browser settings, or type your address manually.", variant: "destructive" });
-        } else {
-          toast({ title: "Could not get location", description: "Try again or type your address.", variant: "destructive" });
+      // Finish after 1.8 seconds with the best available position
+      timeoutTimer = setTimeout(() => {
+        if (watchId !== null) navigator.geolocation.clearWatch(watchId);
+        if (!settled) {
+          if (bestPos) {
+            processFinalCoords(bestPos);
+          } else {
+            navigator.geolocation.getCurrentPosition(
+              (pos) => processFinalCoords(pos),
+              (err) => {
+                setLocating(false);
+                toast({ title: "Could not get location", description: "Please enter your pickup address manually.", variant: "destructive" });
+              },
+              { enableHighAccuracy: true, maximumAge: 10000, timeout: 5000 }
+            );
+          }
         }
-      },
-      { enableHighAccuracy: true, timeout: 10000 }
-    );
+      }, 1800);
+    } catch {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => processFinalCoords(pos),
+        (err) => {
+          setLocating(false);
+          toast({ title: "Could not get location", description: "Please enter your pickup address manually.", variant: "destructive" });
+        },
+        { enableHighAccuracy: true, maximumAge: 10000, timeout: 8000 }
+      );
+    }
   }, [form, toast]);
 
   const onSubmit = (data: FormData) => {
@@ -861,11 +1343,28 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
       { data: { ...data, distanceKm: distanceKm || undefined, estimatedFare: fareEstimate?.total || undefined } as any },
       {
         onSuccess: (res: any) => {
-          toast({ title: "Booking Submitted", description: "Your booking request has been sent successfully." });
-          if (res.whatsappUrl) window.open(res.whatsappUrl, "_blank");
+          setConfirmedBooking({
+            bookingId: res.bookingId || `BMT-${Date.now().toString(36).toUpperCase()}`,
+            name: data.name,
+            phone: data.phone,
+            pickupAddress: data.pickupAddress,
+            dropoffAddress: data.dropoffAddress,
+            pickupDate: data.pickupDate,
+            pickupTime: data.pickupTime,
+            vehicleType: data.vehicleType,
+            passengers: data.passengers,
+            fare: fareEstimate?.total,
+            paymentMethod: data.paymentMethod,
+          });
+
+          toast({
+            title: "Booking Confirmed & Dispatched",
+            description: `Reference #${res.bookingId || "BMT"}. Our dispatch team will confirm your driver shortly!`,
+          });
           form.reset();
           setPickupCoords(null); setDropoffCoords(null);
           setDistanceKm(null); setFareEstimate(null);
+          setPickupAccuracy(null);
         },
         onError: () => {
           toast({ title: "Error", description: "There was a problem submitting your booking. Please call us.", variant: "destructive" });
@@ -880,6 +1379,11 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
       sedan: "Sedan", suv: "SUV (+$18)", silver_service: "Silver Service (+$11)",
       six_seater: "6 Seater", maxi_taxi: "Maxi Taxi (+$18)"
     };
+    const payLabels: Record<string, string> = {
+      cash: "Cash (Pay Driver)",
+      card: "Credit / Debit Card",
+      cabcharge: "Cabcharge (eTicket / FASTCARD)",
+    };
     const msg = [
       "🚖 *BOOKING REQUEST — Bacchus Marsh Taxi*", "",
       `👤 Name: ${d.name || "(not filled)"}`,
@@ -890,6 +1394,7 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
       `🚗 Vehicle: ${vehicleLabels[d.vehicleType] || d.vehicleType}`,
       `👥 Passengers: ${d.passengers}`,
       `📅 Date: ${d.pickupDate} at ${d.pickupTime}`,
+      `💳 Payment: ${payLabels[d.paymentMethod] || "Cash"}`,
       d.isReturn ? `🔄 Return: ${d.returnDate} at ${d.returnTime}` : "",
       fareEstimate ? `💰 Est. Fare: $${fareEstimate.total.toFixed(2)}` : "",
       distanceKm ? `📏 Distance: ${distanceKm.toFixed(1)} km` : "",
@@ -956,9 +1461,6 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
                       currentLocationLoading={locating}
                     />
                   </FormControl>
-                  <p className="text-[11px] text-muted-foreground mt-1 flex items-center gap-1">
-                    <Navigation className="w-3 h-3 inline" /> Tap the arrow to use your current location
-                  </p>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -968,8 +1470,9 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
                   <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Drop-off Address</FormLabel>
                   <FormControl>
                     <AddressInput
+                      ref={dropoffInputRef}
                       id="dropoff-address"
-                      placeholder="Start typing destination..."
+                      placeholder="Start typing destination address..."
                       value={field.value}
                       onChange={(address, coords) => {
                         field.onChange(address);
@@ -977,6 +1480,48 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
                       }}
                     />
                   </FormControl>
+                  <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+                    <span className="text-[10px] uppercase font-bold text-muted-foreground mr-0.5">Quick Select:</span>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const addr = "Terminal 1, 2, 3 Melbourne Airport, Departure Dr, Melbourne Airport VIC 3045";
+                        const coords = { lat: -37.6690, lng: 144.8410 };
+                        dropoffInputRef.current?.fill(addr, coords);
+                        field.onChange(addr);
+                        setDropoffCoords(coords);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary text-xs font-bold border border-primary/30 transition-colors cursor-pointer"
+                    >
+                      ✈️ Terminal 1, 2, 3 Melbourne Airport
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const addr = "Terminal 4 Melbourne Airport, Departure Dr, Melbourne Airport VIC 3045";
+                        const coords = { lat: -37.6740, lng: 144.8430 };
+                        dropoffInputRef.current?.fill(addr, coords);
+                        field.onChange(addr);
+                        setDropoffCoords(coords);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
+                    >
+                      ✈️ Terminal 4
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const addr = "Southern Cross Station, Spencer St, Melbourne VIC 3000";
+                        const coords = { lat: -37.8184, lng: 144.9525 };
+                        dropoffInputRef.current?.fill(addr, coords);
+                        field.onChange(addr);
+                        setDropoffCoords(coords);
+                      }}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-secondary hover:bg-secondary/80 text-foreground text-xs font-semibold border border-border transition-colors cursor-pointer"
+                    >
+                      🚆 Southern Cross / CBD
+                    </button>
+                  </div>
                   <FormMessage />
                 </FormItem>
               )} />
@@ -1009,14 +1554,14 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
                     <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Vehicle Type</FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <FormControl>
-                        <SelectTrigger className="bg-input/50"><SelectValue placeholder="Select vehicle" /></SelectTrigger>
+                        <SelectTrigger className="bg-input/50"><SelectValue placeholder="Choose vehicle" /></SelectTrigger>
                       </FormControl>
                       <SelectContent>
                         <SelectItem value="sedan">Standard Sedan</SelectItem>
-                        <SelectItem value="suv">Premium SUV (+$18)</SelectItem>
+                        <SelectItem value="suv">Premium SUV (+$15)</SelectItem>
                         <SelectItem value="silver_service">Silver Service (+$11)</SelectItem>
-                        <SelectItem value="six_seater">6 Seater People Mover</SelectItem>
-                        <SelectItem value="maxi_taxi">Maxi Taxi (+$18)</SelectItem>
+                        <SelectItem value="six_seater">6 Seater People Mover (+$21.50)</SelectItem>
+                        <SelectItem value="maxi_taxi">Maxi Taxi (+$21.50)</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />
@@ -1080,6 +1625,104 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
               )} />
             </div>
 
+            {/* Payment Option */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between border-b border-border pb-2">
+                <h3 className="text-xl font-black uppercase tracking-wide">Payment Option</h3>
+                <span className="text-xs text-muted-foreground font-semibold">Pay in vehicle</span>
+              </div>
+
+              <FormField control={form.control} name="paymentMethod" render={({ field }) => (
+                <FormItem>
+                  <FormControl>
+                    <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                      {/* Cash */}
+                      <button
+                        type="button"
+                        onClick={() => field.onChange("cash")}
+                        className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                          field.value === "cash"
+                            ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                            : "border-border bg-card/60 hover:bg-secondary/60 hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="h-10 flex items-center">
+                            <span className="text-2xl">💵</span>
+                          </div>
+                          {field.value === "cash" ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                          ) : (
+                            <span className="w-4 h-4 rounded-full border border-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-black text-sm uppercase tracking-wide text-foreground">Cash</div>
+                          <div className="text-[11px] text-muted-foreground leading-snug mt-0.5">Pay driver directly with cash on trip</div>
+                        </div>
+                      </button>
+
+                      {/* Credit / Debit Card */}
+                      <button
+                        type="button"
+                        onClick={() => field.onChange("card")}
+                        className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                          field.value === "card"
+                            ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                            : "border-border bg-card/60 hover:bg-secondary/60 hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="h-10 flex items-center">
+                            <span className="text-2xl">💳</span>
+                          </div>
+                          {field.value === "card" ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                          ) : (
+                            <span className="w-4 h-4 rounded-full border border-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-black text-sm uppercase tracking-wide text-foreground">Credit / Debit Card</div>
+                          <div className="text-[11px] text-muted-foreground leading-snug mt-0.5">Visa, Mastercard, AMEX, EFTPOS, Apple & Google Pay</div>
+                        </div>
+                      </button>
+
+                      {/* Cabcharge */}
+                      <button
+                        type="button"
+                        onClick={() => field.onChange("cabcharge")}
+                        className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
+                          field.value === "cabcharge"
+                            ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                            : "border-border bg-card/60 hover:bg-secondary/60 hover:border-muted-foreground/30"
+                        }`}
+                      >
+                        <div className="flex items-center justify-between mb-2.5">
+                          <div className="h-10 flex items-center">
+                            <CabchargeIcon className="w-16 h-10 drop-shadow-md rounded" />
+                          </div>
+                          {field.value === "cabcharge" ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                          ) : (
+                            <span className="w-4 h-4 rounded-full border border-muted-foreground/40" />
+                          )}
+                        </div>
+                        <div>
+                          <div className="font-black text-sm uppercase tracking-wide text-foreground flex items-center gap-1.5">
+                            <span>Cabcharge</span>
+                            <span className="text-[9px] uppercase font-bold px-1.5 py-0.5 rounded bg-primary/20 text-primary border border-primary/30">eTicket</span>
+                          </div>
+                          <div className="text-[11px] text-muted-foreground leading-snug mt-0.5">eTicket, FASTCARD, Digital Pass & corporate taxi charge</div>
+                        </div>
+                      </button>
+                    </div>
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )} />
+            </div>
+
             {/* Submit */}
             <div className="grid grid-cols-2 gap-4">
               <Button
@@ -1115,7 +1758,15 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
             pickupDate={pickupDate}
             pickupTime={pickupTime}
             onDistance={handleDistance}
+            onPickupCoordsChange={handlePickupCoordsChange}
+            accuracyMeters={pickupAccuracy}
           />
+          {pickupCoords && (
+            <div className="absolute top-3 left-3 bg-background/95 backdrop-blur-sm border border-border rounded-md px-3 py-1.5 text-xs font-semibold z-10 flex items-center gap-2 shadow-sm text-foreground">
+              <span className="w-2.5 h-2.5 rounded-full bg-primary animate-pulse" />
+              <span>Drag pin or tap map to adjust doorstep</span>
+            </div>
+          )}
           {distanceKm && (
             <div className="absolute bottom-3 left-3 bg-background/90 backdrop-blur-sm border border-border rounded-md px-3 py-1.5 text-xs font-bold z-10">
               📏 {distanceKm.toFixed(1)} km driving distance
@@ -1125,110 +1776,14 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
 
         {fareEstimate ? (
           <Card className="bg-card border-primary/50 shadow-md">
-            <CardContent className="p-5 space-y-4">
-              {/* Traffic status badge */}
-              <div className="flex items-center justify-between gap-2 p-2.5 rounded-lg bg-secondary/70 border border-border">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    {fareEstimate.trafficDelayMinutes && fareEstimate.trafficDelayMinutes > 7 ? (
-                      <>
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                      </>
-                    ) : fareEstimate.trafficDelayMinutes && fareEstimate.trafficDelayMinutes > 2 ? (
-                      <>
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-amber-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-amber-500"></span>
-                      </>
-                    ) : (
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    )}
-                  </span>
-                  <div className="text-xs">
-                    <span className="font-bold text-foreground">
-                      {fareEstimate.trafficLevel || "Normal Flow"}
-                    </span>
-                    {fareEstimate.trafficDelayMinutes && fareEstimate.trafficDelayMinutes > 0 ? (
-                      <span className="text-muted-foreground ml-1">
-                        (+{fareEstimate.trafficDelayMinutes}m live delay)
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
-
-                {fareEstimate.durationMinutes ? (
-                  <div className="flex items-center gap-1 text-xs font-semibold text-primary bg-primary/10 px-2 py-0.5 rounded">
-                    <Clock className="w-3.5 h-3.5" />
-                    <span>~{fareEstimate.durationMinutes} mins</span>
-                  </div>
-                ) : null}
-              </div>
-
+            <CardContent className="p-5 space-y-2">
               {/* Total Fare Display */}
               <div className="text-center py-2">
                 <p className="text-xs font-bold uppercase tracking-widest text-muted-foreground">Estimated Fare</p>
                 <div className="text-4xl sm:text-5xl font-black text-primary my-1">${fareEstimate.total.toFixed(2)}</div>
-                <div className="text-xs font-medium text-muted-foreground">
-                  {fareEstimate.rateLabel} · Safe Transport Victoria Regulated
+                <div className="text-xs font-medium text-muted-foreground mt-1">
+                  Includes toll charges.
                 </div>
-                {fareEstimate.minimumFare > 0 && (
-                  <div className="inline-flex items-center gap-1 mt-2 px-2.5 py-0.5 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                    ⚡ $25.00 Minimum Fare Floor Applied
-                  </div>
-                )}
-              </div>
-
-              {/* Itemized Victoria Meter Breakdown */}
-              <div className="space-y-1.5 text-xs border-t border-border pt-3">
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Base Flagfall ({fareEstimate.rateType || "Day"} rate)</span>
-                  <span className="font-medium text-foreground">${fareEstimate.flagFall.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>Distance ({distanceKm?.toFixed(1) || "0"} km @ ${fareEstimate.ratesSchedule?.perKm.toFixed(2) || "2.10"}/km)</span>
-                  <span className="font-medium text-foreground">${fareEstimate.distanceCharge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span className="flex items-center gap-1">
-                    <span>Traffic & Waiting ({fareEstimate.slowMinutes || 1} min @ ${fareEstimate.ratesSchedule?.perMin.toFixed(2) || "0.70"}/m)</span>
-                  </span>
-                  <span className="font-medium text-foreground">${fareEstimate.timeCharge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between text-muted-foreground">
-                  <span>CPV Government Levy</span>
-                  <span className="font-medium text-foreground">${fareEstimate.cpvLevy.toFixed(2)}</span>
-                </div>
-                {fareEstimate.vehicleSurcharge > 0 && (
-                  <div className="flex justify-between text-primary font-medium">
-                    <span>Vehicle / High Occupancy Surcharge</span>
-                    <span>+${fareEstimate.vehicleSurcharge.toFixed(2)}</span>
-                  </div>
-                )}
-                {fareEstimate.tollCharges > 0 && (
-                  <div className="flex justify-between text-primary font-medium">
-                    <span>Linkt Tolls ({fareEstimate.tollRoads.length} section{fareEstimate.tollRoads.length > 1 ? "s" : ""})</span>
-                    <span>+${fareEstimate.tollCharges.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-
-              <div className="flex items-center justify-between pt-2 border-t border-border text-xs">
-                <button
-                  type="button"
-                  onClick={() => setShowRateCardDialog(true)}
-                  className="inline-flex items-center gap-1 text-primary hover:underline font-semibold cursor-pointer"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>View Official Meter Rates</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowMinimumDialog(true)}
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-primary transition-colors cursor-pointer"
-                >
-                  <Info className="w-3.5 h-3.5" />
-                  <span>$25 Min Policy</span>
-                </button>
               </div>
             </CardContent>
           </Card>
@@ -1239,140 +1794,62 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
                 <Car className="w-5 h-5" />
               </div>
               <div>
-                <p className="font-bold uppercase tracking-wide text-foreground">Live Fare Estimator</p>
-                <p className="text-xs text-muted-foreground mt-1">
-                  Enter pickup and drop-off addresses to get a real-time fare calculation with live traffic and regulated rates.
+                <p className="font-bold uppercase tracking-wide text-foreground">
+                  {distanceKm && !vehicleType ? "Choose Vehicle to View Fare" : "Live Fare Estimator"}
                 </p>
-              </div>
-              <div className="flex items-center justify-center gap-4 text-xs pt-1">
-                <button
-                  type="button"
-                  onClick={() => setShowRateCardDialog(true)}
-                  className="inline-flex items-center gap-1 text-primary hover:underline font-semibold cursor-pointer"
-                >
-                  <ShieldCheck className="w-3.5 h-3.5" />
-                  <span>Meter Rates Schedule</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setShowMinimumDialog(true)}
-                  className="inline-flex items-center gap-1 text-muted-foreground hover:text-foreground cursor-pointer"
-                >
-                  <Info className="w-3.5 h-3.5" />
-                  <span>$25 Minimum</span>
-                </button>
+                <p className="text-xs text-muted-foreground mt-1">
+                  {distanceKm && !vehicleType
+                    ? `Route calculated (${distanceKm.toFixed(1)} km). Please choose your vehicle above to view your exact live traffic fare.`
+                    : "Enter pickup and drop-off addresses to get a real-time fare calculation with live traffic and regulated rates."}
+                </p>
               </div>
             </CardContent>
           </Card>
         )}
       </div>
 
-      {/* ── Fare Estimate Popup Dialog ── */}
+      {/* ── Fare Estimate Popup Dialog (Exact Screenshot Layout) ── */}
       <Dialog open={showFareDialog} onOpenChange={setShowFareDialog}>
-        <DialogContent className="sm:max-w-md">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-black uppercase tracking-wide">
-              Live Fare Estimate
+        <DialogContent className="sm:max-w-md p-6 bg-card border-border shadow-2xl">
+          <DialogHeader className="text-left space-y-1.5">
+            <DialogTitle className="text-xl font-bold tracking-tight text-foreground">
+              Your Fare Estimate
             </DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground leading-normal">
+              Includes toll charges.
+            </DialogDescription>
           </DialogHeader>
-          {fareEstimate && (
-            <div className="space-y-4">
-              {/* Traffic Alert & Status */}
-              <div className="flex items-center justify-between p-3 rounded-lg bg-secondary/80 border border-border">
-                <div className="flex items-center gap-2">
-                  <span className="relative flex h-3 w-3">
-                    {fareEstimate.trafficDelayMinutes && fareEstimate.trafficDelayMinutes > 7 ? (
-                      <>
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
-                      </>
-                    ) : (
-                      <span className="relative inline-flex rounded-full h-3 w-3 bg-emerald-500"></span>
-                    )}
-                  </span>
-                  <div className="text-xs">
-                    <span className="font-bold text-foreground">
-                      Traffic: {fareEstimate.trafficLevel || "Normal Flow"}
-                    </span>
-                    {fareEstimate.trafficDelayMinutes && fareEstimate.trafficDelayMinutes > 0 ? (
-                      <span className="text-muted-foreground ml-1">
-                        (+{fareEstimate.trafficDelayMinutes}m delay)
-                      </span>
-                    ) : null}
-                  </div>
-                </div>
 
-                {fareEstimate.durationMinutes ? (
-                  <div className="text-xs font-bold text-primary bg-primary/10 px-2.5 py-1 rounded">
-                    ~{fareEstimate.durationMinutes} mins
-                  </div>
-                ) : null}
-              </div>
-
-              {/* Total Card */}
-              <div className="text-center py-4 px-3 rounded-lg bg-primary/5 border border-primary/20">
-                <div className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Estimated Total</div>
-                <div className="text-5xl sm:text-6xl font-black text-primary my-1.5">${fareEstimate.total.toFixed(2)}</div>
-                <div className="text-xs font-semibold text-foreground">
-                  {fareEstimate.rateLabel}
-                </div>
-                {fareEstimate.minimumFare > 0 && (
-                  <div className="inline-flex items-center gap-1 mt-2 px-3 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold border border-primary/20">
-                    ⚡ Flat Minimum Fare Applied ($25.00)
-                  </div>
-                )}
-                {distanceKm && (
-                  <div className="text-xs text-muted-foreground mt-1.5">
-                    Route Distance: <span className="font-bold text-foreground">{distanceKm.toFixed(1)} km</span>
-                  </div>
-                )}
-              </div>
-
-              {/* Regulated Meter Breakdown */}
-              <div className="rounded-lg border border-border p-3 space-y-2 text-xs bg-card">
-                <div className="font-bold uppercase tracking-wider text-muted-foreground text-[10px] pb-1 border-b border-border">
-                  Safe Transport Victoria Meter Calculation
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Flagfall ({fareEstimate.rateType || "Day"} rate)</span>
-                  <span className="font-semibold">${fareEstimate.flagFall.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Distance Charge ({distanceKm?.toFixed(1) || "0"} km @ ${fareEstimate.ratesSchedule?.perKm.toFixed(2) || "2.10"}/km)</span>
-                  <span className="font-semibold">${fareEstimate.distanceCharge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">Live Traffic & Detention ({fareEstimate.slowMinutes || 1} min @ ${fareEstimate.ratesSchedule?.perMin.toFixed(2) || "0.70"}/m)</span>
-                  <span className="font-semibold">${fareEstimate.timeCharge.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">CPV Government Levy</span>
-                  <span className="font-semibold">${fareEstimate.cpvLevy.toFixed(2)}</span>
-                </div>
-                {fareEstimate.vehicleSurcharge > 0 && (
-                  <div className="flex justify-between text-primary font-semibold">
-                    <span>Vehicle / High Occupancy Fee</span>
-                    <span>+${fareEstimate.vehicleSurcharge.toFixed(2)}</span>
-                  </div>
-                )}
-                {fareEstimate.tollCharges > 0 && (
-                  <div className="flex justify-between text-primary font-semibold">
-                    <span>Tolls ({fareEstimate.tollRoads.join(", ")})</span>
-                    <span>+${fareEstimate.tollCharges.toFixed(2)}</span>
-                  </div>
-                )}
-              </div>
-
-              <DialogFooter className="flex-col gap-2 sm:gap-0 pt-2">
-                <Button className="w-full h-12 font-bold uppercase tracking-wider" onClick={() => setShowFareDialog(false)}>
-                  Continue Booking Ride
-                </Button>
-                <Button variant="outline" className="w-full" onClick={() => setShowFareDialog(false)}>
-                  Close
-                </Button>
-              </DialogFooter>
+          <div className="my-5 p-6 rounded-xl bg-secondary/50 border border-border text-center space-y-1">
+            <p className="text-xs font-bold uppercase tracking-wider text-muted-foreground">
+              ESTIMATED TOTAL
+            </p>
+            <div className="text-5xl font-black text-primary tracking-tight">
+              ${fareEstimate?.total.toFixed(2)}
             </div>
-          )}
+          </div>
+
+          <DialogFooter className="flex-col gap-2 sm:gap-2 pt-1">
+            <Button
+              className="w-full h-12 font-bold text-base uppercase tracking-wide bg-primary text-primary-foreground hover:bg-primary/90"
+              onClick={() => {
+                setShowFareDialog(false);
+                const submitBtn = document.querySelector('[data-testid="btn-submit-booking"]');
+                if (submitBtn) {
+                  submitBtn.scrollIntoView({ behavior: "smooth", block: "center" });
+                }
+              }}
+            >
+              Book This Ride
+            </Button>
+            <Button
+              variant="outline"
+              className="w-full h-11 font-semibold text-foreground hover:bg-secondary"
+              onClick={() => setShowFareDialog(false)}
+            >
+              Close
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
@@ -1386,7 +1863,7 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
           </DialogHeader>
           <div className="space-y-4 text-xs">
             <p className="text-muted-foreground text-center leading-relaxed">
-              Regulated maximum taxi fares for Metropolitan Melbourne, Frankston, Dandenong & Mornington Peninsula. Time or distance tariff structure (crossover speed 21 km/h).
+              Regulated maximum taxi fares for Metropolitan Melbourne, Frankston, Dandenong &amp; Mornington Peninsula. Time or distance tariff structure (crossover speed 21 km/h).
             </p>
 
             {/* Rate Schedules Table */}
@@ -1394,45 +1871,45 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
               <div className="p-3 rounded-lg bg-secondary/50 border border-border space-y-1">
                 <div className="flex justify-between font-bold text-foreground">
                   <span>Day Rate (9:00 AM – 5:00 PM)</span>
-                  <span className="text-primary font-black">$5.40 flagfall</span>
+                  <span className="text-primary font-black">$5.25 flagfall</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between">
                   <span>Distance rate (speed &gt; 21 km/h):</span>
-                  <span className="font-semibold text-foreground">$2.10 / km</span>
+                  <span className="font-semibold text-foreground">$2.037 / km</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between">
                   <span>Time charge (speed &lt; 21 km/h):</span>
-                  <span className="font-semibold text-foreground">$0.70 / min</span>
+                  <span className="font-semibold text-foreground">$0.713 / min ($42.78/hr)</span>
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-secondary/50 border border-border space-y-1">
                 <div className="flex justify-between font-bold text-foreground">
                   <span>Overnight Rate (5:00 PM – 9:00 AM)</span>
-                  <span className="text-primary font-black">$6.75 flagfall</span>
+                  <span className="text-primary font-black">$6.55 flagfall</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between">
                   <span>Distance rate (speed &gt; 21 km/h):</span>
-                  <span className="font-semibold text-foreground">$2.30 / km</span>
+                  <span className="font-semibold text-foreground">$2.265 / km</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between">
                   <span>Time charge (speed &lt; 21 km/h):</span>
-                  <span className="font-semibold text-foreground">$0.80 / min</span>
+                  <span className="font-semibold text-foreground">$0.792 / min ($47.52/hr)</span>
                 </div>
               </div>
 
               <div className="p-3 rounded-lg bg-secondary/50 border border-border space-y-1">
                 <div className="flex justify-between font-bold text-foreground">
                   <span>Peak Rate (10:00 PM – 4:00 AM Fri &amp; Sat, plus Holidays)</span>
-                  <span className="text-primary font-black">$8.00 flagfall</span>
+                  <span className="text-primary font-black">$7.80 flagfall</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between">
                   <span>Distance rate (speed &gt; 21 km/h):</span>
-                  <span className="font-semibold text-foreground">$2.55 / km</span>
+                  <span className="font-semibold text-foreground">$2.493 / km</span>
                 </div>
                 <div className="text-muted-foreground flex justify-between">
                   <span>Time charge (speed &lt; 21 km/h):</span>
-                  <span className="font-semibold text-foreground">$0.85 / min</span>
+                  <span className="font-semibold text-foreground">$0.872 / min ($52.32/hr)</span>
                 </div>
               </div>
             </div>
@@ -1444,15 +1921,19 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>High Occupancy Fee (5+ passengers or Maxi Taxi)</span>
-                <span className="font-bold text-foreground">$18.35</span>
+                <span className="font-bold text-foreground">$21.50</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>CPV Government Levy Recovery Fee</span>
-                <span className="font-bold text-foreground">$1.30</span>
+                <span className="font-bold text-foreground">$1.40</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Silver Service / Luxury Premium</span>
                 <span className="font-bold text-foreground">$11.00</span>
+              </div>
+              <div className="flex justify-between text-muted-foreground">
+                <span>Premium SUV Surcharge</span>
+                <span className="font-bold text-foreground">$15.00</span>
               </div>
               <div className="flex justify-between text-muted-foreground">
                 <span>Short-trip Floor / Minimum Fare (trips &lt; 5 km)</span>
@@ -1512,6 +1993,90 @@ export function BookingForm({ initialVehicle = "sedan", showMinimumToast = true,
               </Button>
             </DialogFooter>
           </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* ── Booking Submission Confirmation Dialog (100% In-App, Zero Third-Party) ── */}
+      <Dialog open={!!confirmedBooking} onOpenChange={(open) => { if (!open) setConfirmedBooking(null); }}>
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto bg-card border-border shadow-2xl p-6">
+          <DialogHeader className="text-center pb-2">
+            <div className="mx-auto w-14 h-14 rounded-full bg-primary/20 text-primary flex items-center justify-center mb-3">
+              <CheckCircle2 className="w-8 h-8" />
+            </div>
+            <DialogTitle className="text-2xl font-black uppercase tracking-wide text-foreground">
+              Booking Confirmed
+            </DialogTitle>
+            <DialogDescription className="text-muted-foreground text-sm">
+              Your ride is registered directly with our Melbourne dispatch team.
+            </DialogDescription>
+          </DialogHeader>
+
+          {confirmedBooking && (
+            <div className="space-y-4 pt-2">
+              {/* Reference ID Banner */}
+              <div className="bg-primary/10 border border-primary/30 rounded-lg p-3 text-center">
+                <span className="text-xs uppercase font-bold text-muted-foreground tracking-widest block">Booking Reference</span>
+                <span className="text-2xl font-black text-primary tracking-wider font-mono">{confirmedBooking.bookingId}</span>
+              </div>
+
+              {/* Ride Summary Table */}
+              <div className="rounded-lg border border-border bg-secondary/30 p-4 space-y-2.5 text-sm">
+                <div className="flex justify-between items-start gap-2 border-b border-border/50 pb-2">
+                  <span className="text-muted-foreground text-xs uppercase font-bold">Passenger</span>
+                  <span className="font-bold text-foreground text-right">{confirmedBooking.name} ({confirmedBooking.phone})</span>
+                </div>
+                <div className="flex justify-between items-start gap-2 border-b border-border/50 pb-2">
+                  <span className="text-muted-foreground text-xs uppercase font-bold">Pickup</span>
+                  <span className="font-medium text-foreground text-right">{confirmedBooking.pickupAddress}</span>
+                </div>
+                <div className="flex justify-between items-start gap-2 border-b border-border/50 pb-2">
+                  <span className="text-muted-foreground text-xs uppercase font-bold">Dropoff</span>
+                  <span className="font-medium text-foreground text-right">{confirmedBooking.dropoffAddress}</span>
+                </div>
+                <div className="flex justify-between items-center gap-2 border-b border-border/50 pb-2">
+                  <span className="text-muted-foreground text-xs uppercase font-bold">Schedule</span>
+                  <span className="font-bold text-primary text-right">{confirmedBooking.pickupDate} at {confirmedBooking.pickupTime}</span>
+                </div>
+                <div className="flex justify-between items-center gap-2 border-b border-border/50 pb-2">
+                  <span className="text-muted-foreground text-xs uppercase font-bold">Vehicle & Guests</span>
+                  <span className="font-medium text-foreground capitalize text-right">{confirmedBooking.vehicleType.replace("_", " ")} · {confirmedBooking.passengers} pass</span>
+                </div>
+                {confirmedBooking.fare && (
+                  <div className="flex justify-between items-center gap-2">
+                    <span className="text-muted-foreground text-xs uppercase font-bold">Est. Fare</span>
+                    <span className="text-lg font-black text-primary text-right">${confirmedBooking.fare.toFixed(2)}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Direct Support & Action Buttons */}
+              <div className="p-3 rounded-lg bg-secondary/50 border border-border text-center space-y-1">
+                <p className="text-xs text-muted-foreground">Need urgent adjustments or immediate pickup?</p>
+                <a
+                  href="tel:0435304821"
+                  className="text-sm font-bold text-primary hover:underline inline-flex items-center gap-1.5"
+                >
+                  📞 Direct 24/7 Melbourne Dispatch: 0435 304 821
+                </a>
+              </div>
+
+              <DialogFooter className="flex-col sm:flex-row gap-2 pt-2">
+                <a
+                  href="tel:0435304821"
+                  className="w-full sm:w-1/2 inline-flex items-center justify-center h-11 rounded-md font-bold uppercase tracking-wider bg-primary text-primary-foreground hover:bg-primary/90 text-sm"
+                >
+                  Call Dispatch
+                </a>
+                <Button
+                  variant="outline"
+                  className="w-full sm:w-1/2 h-11 font-bold uppercase tracking-wider text-sm"
+                  onClick={() => setConfirmedBooking(null)}
+                >
+                  Done
+                </Button>
+              </DialogFooter>
+            </div>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -182,6 +182,10 @@ components:
         distanceKm:
           type: number
           nullable: true
+        paymentMethod:
+          type: string
+          enum: [cash, card, cabcharge]
+          nullable: true
       required:
         - name
         - phone

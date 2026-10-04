@@ -43,6 +43,7 @@ export const CreateBookingBody = zod.object({
   estimatedFare: zod.number().nullish(),
   notes: zod.string().nullish(),
   distanceKm: zod.number().nullish(),
+  paymentMethod: zod.enum(["cash", "card", "cabcharge"]).nullish(),
 });
 
 export const CreateBookingResponse = zod.object({

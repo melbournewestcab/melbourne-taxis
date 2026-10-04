@@ -40,6 +40,7 @@ export interface CreateBookingBody {
   estimatedFare?: number | null;
   notes?: string | null;
   distanceKm?: number | null;
+  paymentMethod?: "cash" | "card" | "cabcharge" | null;
 }
 
 export interface BookingResponse {

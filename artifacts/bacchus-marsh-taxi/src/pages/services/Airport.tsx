@@ -1,19 +1,36 @@
-import React, { useEffect } from "react";
+import React from "react";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Plane, Clock, CheckCircle2, Luggage, Shield, MapPin } from "lucide-react";
+import { SEO } from "@/components/SEO";
 
 export default function AirportPage() {
   const [, navigate] = useLocation();
 
-  useEffect(() => {
-    document.title = "Melbourne Airport Transfers | Tullamarine & Avalon Taxi | Melbourne Taxis";
-    const m = document.querySelector('meta[name="description"]');
-    if (m) m.setAttribute("content", "Reliable 24/7 Melbourne Airport taxi transfers to/from Tullamarine (MEL) & Avalon (AVV). Fixed fares, flight tracking, Maxi Cabs. Book online or call 0435 304 821.");
-  }, []);
-
   return (
     <div className="w-full bg-background min-h-screen pb-24">
+      <SEO
+        title="Taxi to Melbourne Airport | 24/7 Tullamarine & Avalon Transfers | 0435 304 821"
+        description="Book a Taxi to Melbourne Airport (Tullamarine & Avalon) 24/7 with Melbourne Taxis. Guaranteed fixed fares, live flight tracking, express terminal drop-offs & Maxi Cabs from all Melbourne suburbs."
+        keywords={[
+          "Taxi to Melbourne Airport",
+          "Taxi to Melbourne Airport Tullamarine",
+          "Taxi to Avalon Airport",
+          "Melbourne Airport taxi",
+          "airport transfers Melbourne",
+          "Taxi to Melbourne Airport from CBD",
+          "Taxi to Melbourne Airport from Western Suburbs",
+          "Taxi to Melbourne Airport from Northern Suburbs",
+          "Taxi to Melbourne Airport from Eastern Suburbs",
+          "Taxi to Melbourne Airport from Bayside",
+          "Melbourne Airport Maxi Taxi",
+          "cheap taxi to Melbourne Airport",
+          "fixed price taxi Melbourne Airport",
+        ]}
+        canonicalPath="/services/airport"
+        suburbName="Melbourne Airport"
+        geoCoordinates={{ latitude: -37.6690, longitude: 144.8410 }}
+      />
       <div className="bg-secondary py-20 border-b border-border">
         <div className="container max-w-4xl mx-auto px-4 text-center">
           <Plane className="w-16 h-16 text-primary mx-auto mb-6" />

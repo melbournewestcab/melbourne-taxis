@@ -52,11 +52,26 @@ export function SEO({
   breadcrumbs: propBreadcrumbs,
   geoCoordinates,
 }: SEOProps) {
-  const title = propTitle || (suburb ? suburb.metaTitle : "Melbourne Taxis | 24/7 Cab Booking & Airport Transfers");
-  const description = propDescription || (suburb ? suburb.metaDesc : "Book Melbourne Taxis 24/7 across all Melbourne suburbs. Fast pickups, fixed fares to Melbourne Airport, Maxi Cabs, and Silver Service.");
-  const keywords = propKeywords || (suburb ? suburb.keywords : []);
+  const title = propTitle || (suburb ? suburb.metaTitle : "Melbourne Taxis | Taxi to Melbourne Airport & 24/7 Suburb Cabs");
+  const description = propDescription || (suburb ? suburb.metaDesc : "Book Melbourne Taxis 24/7 across all Melbourne suburbs. Fast pickups, fixed fares for Taxi to Melbourne Airport, Maxi Cabs, and Silver Service.");
   const suburbName = propSuburbName || (suburb ? suburb.name : undefined);
   const postcode = propPostcode || (suburb ? suburb.postcode : undefined);
+
+  const rawKeywords = propKeywords || (suburb ? suburb.keywords : []);
+  const areaKeywords = [
+    "Taxi to Melbourne Airport",
+    "Taxi to Melbourne Airport Tullamarine",
+    "Taxi to Avalon Airport",
+    suburbName ? `Taxi to Melbourne Airport from ${suburbName}` : null,
+    suburbName ? `Taxi from ${suburbName} to Melbourne Airport` : null,
+    suburbName ? `Taxi ${suburbName}` : null,
+    suburbName ? `Taxi in ${suburbName}` : null,
+    suburbName ? `Cabs in ${suburbName}` : null,
+    suburbName ? `Melbourne Airport transfers ${suburbName}` : null,
+    ...rawKeywords,
+  ].filter(Boolean) as string[];
+  const keywords = Array.from(new Set(areaKeywords));
+
   const faqs = propFaqs || (suburb ? suburb.faqs : []);
   const breadcrumbs = propBreadcrumbs || (suburb ? [
     { name: "Home", url: "/" },
@@ -75,15 +90,21 @@ export function SEO({
     }
     updateMetaTag("name", "robots", "index, follow, max-snippet:-1, max-image-preview:large, max-video-preview:-1");
 
-    // 3. Local Search & Geo Tags
-    if (suburbName) {
-      updateMetaTag("name", "geo.region", "AU-VIC");
-      updateMetaTag("name", "geo.placename", `${suburbName}, Melbourne, Victoria, Australia`);
-      if (geoCoordinates) {
-        updateMetaTag("name", "geo.position", `${geoCoordinates.latitude};${geoCoordinates.longitude}`);
-        updateMetaTag("name", "ICBM", `${geoCoordinates.latitude}, ${geoCoordinates.longitude}`);
-      }
+    // 3. Local Search & Geo-Targeting Tags
+    updateMetaTag("name", "geo.region", "AU-VIC");
+    updateMetaTag("name", "geo.placename", suburbName ? `${suburbName}, Melbourne, Victoria, Australia` : "Melbourne Airport, Melbourne CBD, Victoria, Australia");
+    if (geoCoordinates) {
+      updateMetaTag("name", "geo.position", `${geoCoordinates.latitude};${geoCoordinates.longitude}`);
+      updateMetaTag("name", "ICBM", `${geoCoordinates.latitude}, ${geoCoordinates.longitude}`);
+    } else {
+      updateMetaTag("name", "geo.position", "-37.6690;144.8410");
+      updateMetaTag("name", "ICBM", "-37.6690, 144.8410");
     }
+    updateMetaTag("name", "target_area", suburbName ? `Taxi to Melbourne Airport, Taxi in ${suburbName}, Greater Melbourne` : "Taxi to Melbourne Airport, Melbourne CBD, Greater Melbourne, Victoria");
+    updateMetaTag("name", "coverage", `Taxi to Melbourne Airport, ${suburbName || "Melbourne"}, Victoria, Australia`);
+    updateMetaTag("name", "city", "Melbourne");
+    updateMetaTag("name", "state", "Victoria");
+    updateMetaTag("name", "country", "Australia");
 
     // 4. Open Graph Tags
     const origin = typeof window !== "undefined" ? window.location.origin : "https://melbournetaxis.com.au";
@@ -98,6 +119,9 @@ export function SEO({
     updateMetaTag("property", "og:image:alt", `${title} - Melbourne Taxis`);
     updateMetaTag("property", "og:site_name", "Melbourne Taxis");
     updateMetaTag("property", "og:locale", "en_AU");
+    updateMetaTag("property", "og:locality", suburbName || "Melbourne");
+    updateMetaTag("property", "og:region", "Victoria");
+    updateMetaTag("property", "og:country-name", "Australia");
 
     // 5. Twitter Card Tags
     updateMetaTag("name", "twitter:card", "summary_large_image");
@@ -127,7 +151,7 @@ export function SEO({
           "@type": "LocalBusiness",
           name: "Melbourne Taxis",
           telephone: "+61435304821",
-          email: "melbournewestcab@gmail.com",
+          email: "p2839582@gmail.com",
           priceRange: "$$",
           image: absoluteImageUrl,
           currenciesAccepted: "AUD",
@@ -147,13 +171,24 @@ export function SEO({
             },
           }),
         },
-        areaServed: {
-          "@type": "AdministrativeArea",
-          name: suburbName || "Greater Melbourne",
-        },
+        areaServed: [
+          {
+            "@type": "AdministrativeArea",
+            name: suburbName || "Greater Melbourne",
+          },
+          {
+            "@type": "AdministrativeArea",
+            name: "Melbourne Airport (Tullamarine)",
+          },
+          {
+            "@type": "AdministrativeArea",
+            name: "Avalon Airport",
+          },
+        ],
         serviceType: [
+          "Taxi to Melbourne Airport",
+          suburbName ? `Taxi to Melbourne Airport from ${suburbName}` : "Melbourne Airport Transfers (Tullamarine & Avalon)",
           `Taxi in ${suburbName || "Melbourne"}`,
-          "Airport Transfers (Tullamarine & Avalon)",
           "Maxi Taxi Group Transport",
           "Silver Service Executive Chauffeur",
           "Door to Door 24/7 Cab Service",

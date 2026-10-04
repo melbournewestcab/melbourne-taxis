@@ -1,10 +1,33 @@
-import React, { useEffect } from "react";
+import React, { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
-import { CheckCircle2, Clock, MapPin, ShieldCheck, Plane, Car, Users, Star, ArrowRight, Shield } from "lucide-react";
+import {
+  CheckCircle2,
+  Clock,
+  MapPin,
+  ShieldCheck,
+  Plane,
+  Car,
+  Users,
+  Star,
+  ArrowRight,
+  Shield,
+  HelpCircle,
+  CreditCard,
+  CalendarCheck,
+  Phone,
+  MessageCircle,
+} from "lucide-react";
+import {
+  Accordion,
+  AccordionContent,
+  AccordionItem,
+  AccordionTrigger,
+} from "@/components/ui/accordion";
 import { BookingForm } from "@/components/BookingForm";
 import { SUBURBS_DATA } from "@/data/suburbsData";
+import { SEO } from "@/components/SEO";
 
 const WhatsAppIcon = () => (
   <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
@@ -12,20 +35,115 @@ const WhatsAppIcon = () => (
   </svg>
 );
 
+const HOME_FAQS = [
+  // Airport Transfers
+  {
+    category: "airport",
+    categoryLabel: "Airport Transfers",
+    q: "How does the Melbourne Airport transfer service work?",
+    a: "We provide 24/7 direct door-to-door transfers to both Melbourne Airport (Tullamarine MEL - Terminals 1, 2, 3, and 4) and Avalon Airport (AVV) from any Melbourne suburb or regional Victoria. You can book in advance with a fixed price or request on-demand pickup. Your driver arrives on time, assists with heavy luggage, and drops you right outside your departure gate.",
+  },
+  {
+    category: "airport",
+    categoryLabel: "Airport Transfers",
+    q: "What happens if my inbound flight to Melbourne is delayed?",
+    a: "We actively monitor live radar flight feeds for all airport pickups. Simply provide your incoming flight number when reserving your ride. If your flight is delayed or arrives early, your pickup time is automatically adjusted at no extra charge, guaranteeing your driver is ready when you exit terminal baggage claim.",
+  },
+  {
+    category: "airport",
+    categoryLabel: "Airport Transfers",
+    q: "Where do I meet my driver at Melbourne Airport?",
+    a: "Your driver will contact you via SMS or phone call as soon as your aircraft lands. Meeting points are conveniently located at the designated passenger pickup zones and commercial taxi ranks directly outside Terminals 1, 2, 3, and 4. Premium meet-and-greet inside terminal arrivals is also available upon request.",
+  },
+  {
+    category: "airport",
+    categoryLabel: "Airport Transfers",
+    q: "How much luggage can your airport taxis accommodate?",
+    a: "Our standard hybrid sedans easily accommodate 2 large suitcases plus carry-on bags. For larger families, sports teams, or extensive luggage, our Premium SUVs, 6-Seater People Movers, and 11-Seater Maxi Taxis offer generous cargo space for prams, golf bags, and oversized baggage.",
+  },
+  // Booking & Fleet
+  {
+    category: "booking",
+    categoryLabel: "Booking & Fleet",
+    q: "How do I book a Melbourne Taxi, and can I reserve in advance?",
+    a: "You can book online through our instant booking form with live fare calculations, call our 24/7 Melbourne dispatch line at 0435 304 821, or message us on WhatsApp. We accept bookings for immediate dispatch (arriving within 5–10 minutes in metro areas) as well as advance reservations weeks or months ahead with 100% guaranteed driver allocation.",
+  },
+  {
+    category: "booking",
+    categoryLabel: "Booking & Fleet",
+    q: "Can I book a Maxi Taxi for large groups or special events?",
+    a: "Yes! Our versatile fleet includes Standard Sedans (1–4 passengers), Premium SUVs (1–5 passengers), Luxury Silver Service Lexuses, 6-Seater People Movers, and high-capacity 11-Seater Maxi Taxis (Toyota HiAce). Maxi Taxis are ideal for large families, corporate teams, golf trips, sporting events at the MCG, and oversized luggage.",
+  },
+  {
+    category: "booking",
+    categoryLabel: "Booking & Fleet",
+    q: "Do you provide child car seats or baby capsules?",
+    a: "Yes. Forward-facing child safety seats, rear-facing baby capsules, and booster seats are available upon advance request. Simply specify your child seat requirement in the booking comments or notify our dispatch team when booking by phone.",
+  },
+  {
+    category: "booking",
+    categoryLabel: "Booking & Fleet",
+    q: "Will I receive booking confirmation and driver updates?",
+    a: "Yes, you receive an instant confirmation summary with your reservation reference. Prior to your pickup, you will receive vehicle details, driver contact information, and live estimated time of arrival.",
+  },
+  // Payments & Pricing
+  {
+    category: "payment",
+    categoryLabel: "Payments & Pricing",
+    q: "What payment methods do you accept?",
+    a: "We accept all major payment methods inside every vehicle, including Cash, EFTPOS, Visa, Mastercard, American Express, Apple Pay, Google Pay, and official Cabcharge (both physical cards and digital e-tickets). Digital tax invoices and receipts are provided instantly.",
+  },
+  {
+    category: "payment",
+    categoryLabel: "Payments & Pricing",
+    q: "Do you offer fixed price fares or metered rates?",
+    a: "We offer both! For airport transfers, corporate travel, and long-distance trips, we provide guaranteed fixed upfront quotes with zero surge pricing, regardless of traffic delays. For local suburban trips, standard regulated Safe Transport Victoria meter rates apply.",
+  },
+  {
+    category: "payment",
+    categoryLabel: "Payments & Pricing",
+    q: "Are there unexpected cancellation fees or surge charges?",
+    a: "No. Unlike rideshare apps, Melbourne Taxis never applies surge multipliers during rainy weather, train disruptions, or major stadium events. All rates adhere to regulated Safe Transport Victoria standards, and tolls or government levies ($1.40 CPV) are communicated transparently upfront.",
+  },
+];
+
 export default function HomePage() {
-  useEffect(() => {
-    document.title = "Melbourne Taxis | 24/7 Cab Booking & Airport Transfers Melbourne | 0435 304 821";
-    const metaDesc = document.querySelector('meta[name="description"]');
-    if (metaDesc) {
-      metaDesc.setAttribute(
-        "content",
-        "Book Melbourne Taxis 24/7 across all Melbourne suburbs. Fast pickups, fixed fares to Melbourne Airport (Tullamarine & Avalon), Maxi Cabs, Silver Service & corporate travel. Call 0435 304 821 or book online."
-      );
-    }
-  }, []);
+  const [activeFaqCategory, setActiveFaqCategory] = useState<"all" | "airport" | "booking" | "payment">("all");
+
+  const filteredFaqs = activeFaqCategory === "all"
+    ? HOME_FAQS
+    : HOME_FAQS.filter((f) => f.category === activeFaqCategory);
 
   return (
     <div className="flex flex-col w-full">
+      <SEO
+        title="Melbourne Taxis | Taxi to Melbourne Airport & 24/7 Suburb Cabs | 0435 304 821"
+        description="Book a Taxi to Melbourne Airport (Tullamarine & Avalon) and local cabs across Melbourne CBD, Bacchus Marsh, Melton, Werribee, Richmond, South Yarra & all Melbourne suburbs. 24/7 fast dispatch, fixed fares & Maxi Cabs. Call 0435 304 821."
+        keywords={[
+          "Taxi to Melbourne Airport",
+          "Taxi to Melbourne Airport Tullamarine",
+          "Taxi to Avalon Airport",
+          "Melbourne Airport Taxi",
+          "airport transfer Melbourne",
+          "Taxi Melbourne CBD",
+          "Taxi Southbank",
+          "Taxi Docklands",
+          "Taxi Richmond",
+          "Taxi South Yarra",
+          "Taxi St Kilda",
+          "Taxi Bacchus Marsh",
+          "Taxi Melton",
+          "Taxi Werribee",
+          "Taxi Point Cook",
+          "Taxi Essendon",
+          "Taxi Box Hill",
+          "maxi taxi Melbourne",
+          "silver service taxi Melbourne",
+          "24/7 taxi service Melbourne",
+        ]}
+        canonicalPath="/"
+        faqs={HOME_FAQS.map((faq) => ({ q: faq.q, a: faq.a }))}
+      />
 
       {/* ── Hero ── */}
       <section className="relative min-h-[85vh] w-full flex items-center justify-center overflow-hidden bg-background py-16 md:py-24">
@@ -265,6 +383,103 @@ export default function HomePage() {
           <Button asChild size="lg" variant="outline" className="font-black uppercase tracking-wider text-xs border-primary text-primary hover:bg-primary hover:text-black">
             <Link href="/service-areas">Explore Full Melbourne Suburb Directory →</Link>
           </Button>
+        </div>
+      </section>
+
+      {/* ── Frequently Asked Questions (FAQ) Section ── */}
+      <section className="py-24 bg-card/60 border-b border-border">
+        <div className="container max-w-5xl mx-auto px-4">
+          <div className="text-center mb-12">
+            <span className="text-xs font-bold uppercase tracking-widest text-primary block mb-2">Got Questions?</span>
+            <h2 className="text-3xl md:text-5xl font-black uppercase tracking-tight mb-4 text-white">
+              Frequently Asked Questions
+            </h2>
+            <div className="w-24 h-1.5 bg-primary mx-auto rounded-full mb-4" />
+            <p className="text-muted-foreground text-base max-w-2xl mx-auto">
+              Everything you need to know about reserving your ride, our airport transfer guarantees, fleet options, and payment methods.
+            </p>
+          </div>
+
+          {/* ── Category Filter Buttons ── */}
+          <div className="flex flex-wrap items-center justify-center gap-2 mb-10">
+            {[
+              { id: "all", label: "All Questions", icon: <HelpCircle className="w-4 h-4 mr-1.5" /> },
+              { id: "airport", label: "Airport Transfers", icon: <Plane className="w-4 h-4 mr-1.5" /> },
+              { id: "booking", label: "Booking & Fleet", icon: <CalendarCheck className="w-4 h-4 mr-1.5" /> },
+              { id: "payment", label: "Payments & Pricing", icon: <CreditCard className="w-4 h-4 mr-1.5" /> },
+            ].map((cat) => {
+              const active = activeFaqCategory === cat.id;
+              return (
+                <button
+                  key={cat.id}
+                  type="button"
+                  onClick={() => setActiveFaqCategory(cat.id as any)}
+                  className={`inline-flex items-center px-4 py-2.5 rounded-lg text-xs font-bold uppercase tracking-wider transition-all cursor-pointer ${
+                    active
+                      ? "bg-primary text-black shadow-md scale-[1.02]"
+                      : "bg-background border border-border text-muted-foreground hover:text-white hover:border-primary/50"
+                  }`}
+                >
+                  {cat.icon}
+                  {cat.label}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* ── Accordion List ── */}
+          <Accordion type="single" collapsible className="space-y-3 mb-12">
+            {filteredFaqs.map((faq, idx) => (
+              <AccordionItem
+                key={idx}
+                value={`faq-${idx}`}
+                className="bg-background border border-border rounded-xl px-5 py-1 shadow-sm transition-all hover:border-primary/40 data-[state=open]:border-primary/60 data-[state=open]:bg-secondary/40"
+              >
+                <AccordionTrigger className="text-left font-bold text-base md:text-lg text-white hover:no-underline py-4">
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2 text-left pr-4">
+                    <span className="inline-flex items-center px-2 py-0.5 rounded text-[10px] font-black uppercase tracking-wider bg-secondary text-primary w-fit border border-primary/20">
+                      {faq.categoryLabel}
+                    </span>
+                    <span>{faq.q}</span>
+                  </div>
+                </AccordionTrigger>
+                <AccordionContent className="text-muted-foreground text-sm md:text-base leading-relaxed pb-4 pt-1 border-t border-border/50">
+                  {faq.a}
+                </AccordionContent>
+              </AccordionItem>
+            ))}
+          </Accordion>
+
+          {/* ── Still Have Questions Reassurance Box ── */}
+          <div className="bg-secondary/80 border border-border rounded-2xl p-6 sm:p-8 flex flex-col md:flex-row items-center justify-between gap-6 shadow-md">
+            <div className="text-center md:text-left">
+              <div className="inline-flex items-center gap-2 text-primary font-bold text-xs uppercase tracking-wider mb-2">
+                <ShieldCheck className="w-4 h-4" /> 24/7 Melbourne Dispatch Team
+              </div>
+              <h3 className="text-xl sm:text-2xl font-black uppercase tracking-tight text-white mb-2">
+                Still Have a Question or Need a Ride Right Now?
+              </h3>
+              <p className="text-muted-foreground text-sm max-w-xl">
+                Our local Melbourne operators are ready around the clock to give you instant quotes, confirm flight arrivals, or dispatch a nearby cab.
+              </p>
+            </div>
+            <div className="flex flex-wrap sm:flex-nowrap gap-3 w-full md:w-auto justify-center">
+              <Button asChild size="default" className="font-black uppercase tracking-wider text-xs px-5 h-11 bg-primary text-black hover:bg-primary/90">
+                <a href="tel:0435304821">
+                  <Phone className="w-4 h-4 mr-2" /> 0435 304 821
+                </a>
+              </Button>
+              <Button asChild size="default" variant="outline" className="font-black uppercase tracking-wider text-xs px-5 h-11 border-border text-white hover:bg-white hover:text-black">
+                <a
+                  href="https://wa.me/61435304821?text=Hi%2C%20I%20have%20a%20question%20about%20booking%20a%20taxi%20in%20Melbourne."
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  <MessageCircle className="w-4 h-4 mr-2 text-green-500" /> WhatsApp
+                </a>
+              </Button>
+            </div>
+          </div>
         </div>
       </section>
 
