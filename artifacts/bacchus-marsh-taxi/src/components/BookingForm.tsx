@@ -36,25 +36,44 @@ export const MELBOURNE_CENTER: Coordinates = {
 };
 
 const formSchema = z.object({
-  name: z.string().min(2, "Name is required"),
-  phone: z.string().min(8, "Valid phone number is required"),
-  email: z.string().email("Valid email is required"),
-  pickupAddress: z.string().min(5, "Pickup address is required"),
-  dropoffAddress: z.string().min(5, "Drop-off address is required"),
+  name: z.string().trim().min(2, "Full name is required"),
+  phone: z.string().trim().min(8, "Valid mobile phone number is required"),
+  email: z.string().trim().email("Valid email address is required"),
+  pickupAddress: z.string().trim().min(5, "Pickup address is required"),
+  dropoffAddress: z.string().trim().min(5, "Drop-off address is required"),
   vehicleType: z.enum(["sedan", "suv", "silver_service", "six_seater", "maxi_taxi"], {
-    errorMap: () => ({ message: "Please choose a vehicle" }),
+    errorMap: () => ({ message: "Please choose a vehicle type" }),
   }),
-  passengers: z.coerce.number().min(1).max(10),
-  pickupDate: z.string().min(1, "Select pickup date").refine(v => {
+  passengers: z.coerce.number().min(1, "At least 1 passenger is required").max(13),
+  pickupDate: z.string().min(1, "Please select pickup date").refine(v => {
     const today = new Date().toISOString().split("T")[0];
     return v >= today;
   }, { message: "Pickup date must be today or in the future" }),
-  pickupTime: z.string().min(1, "Select pickup time"),
-  paymentMethod: z.enum(["cash", "card", "cabcharge"]).default("cash"),
+  pickupTime: z.string().min(1, "Please select pickup time"),
+  paymentMethod: z.enum(["cash", "card", "cabcharge"], {
+    errorMap: () => ({ message: "Please select a payment option (Cash, Card, or Cabcharge)" }),
+  }),
   isReturn: z.boolean(),
   returnDate: z.string().optional(),
   returnTime: z.string().optional(),
   notes: z.string().optional()
+}).superRefine((data, ctx) => {
+  if (data.isReturn) {
+    if (!data.returnDate || data.returnDate.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["returnDate"],
+        message: "Return date is required when return trip is enabled",
+      });
+    }
+    if (!data.returnTime || data.returnTime.trim() === "") {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ["returnTime"],
+        message: "Return time is required when return trip is enabled",
+      });
+    }
+  }
 });
 
 type FormData = z.infer<typeof formSchema>;
@@ -1056,7 +1075,7 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
       passengers: 1,
       pickupDate: "",
       pickupTime: "",
-      paymentMethod: "cash",
+      paymentMethod: "" as any,
       isReturn: false, returnDate: "", returnTime: "", notes: ""
     }
   });
@@ -1076,12 +1095,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
     setTrafficRatio(data.trafficRatio);
   }, []);
 
-  // Run fare estimate when distance and vehicle are available
+  // Run fare estimate ONLY once payment method, distance and vehicle are selected
   useEffect(() => {
-    if (!distanceKm || !vehicleType) {
-      if (!vehicleType) {
-        setFareEstimate(null);
-      }
+    if (!paymentMethod || !distanceKm || !vehicleType) {
+      setFareEstimate(null);
       return;
     }
 
@@ -1132,7 +1149,7 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
         },
       }
     );
-  }, [distanceKm, vehicleType, passengers, pickupDate, pickupTime, detectedTollRoads, trafficRatio, routeData]);
+  }, [paymentMethod, distanceKm, vehicleType, passengers, pickupDate, pickupTime, detectedTollRoads, trafficRatio, routeData]);
 
   // Reset distance/fare when either address is cleared
   useEffect(() => {
@@ -1375,6 +1392,16 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
 
   const sendWhatsApp = () => {
     const d = form.getValues();
+    if (!d.name || !d.phone || !d.pickupAddress || !d.dropoffAddress || !d.vehicleType || !d.pickupDate || !d.pickupTime || !d.paymentMethod || (d.isReturn && (!d.returnDate || !d.returnTime))) {
+      toast({
+        title: "Please complete required fields",
+        description: "All fields including payment option are required (only special notes are optional).",
+        variant: "destructive",
+      });
+      form.trigger();
+      return;
+    }
+
     const vehicleLabels: Record<string, string> = {
       sedan: "Sedan", suv: "SUV (+$18)", silver_service: "Silver Service (+$11)",
       six_seater: "6 Seater", maxi_taxi: "Maxi Taxi (+$18)"
@@ -1385,16 +1412,16 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
       cabcharge: "Cabcharge (eTicket / FASTCARD)",
     };
     const msg = [
-      "🚖 *BOOKING REQUEST — Bacchus Marsh Taxi*", "",
-      `👤 Name: ${d.name || "(not filled)"}`,
-      `📞 Phone: ${d.phone || "(not filled)"}`,
-      `📧 Email: ${d.email || "(not filled)"}`, "",
-      `📍 Pickup: ${d.pickupAddress || "(not filled)"}`,
-      `🏁 Dropoff: ${d.dropoffAddress || "(not filled)"}`, "",
+      "🚖 *BOOKING REQUEST — Melbourne Taxis*", "",
+      `👤 Name: ${d.name}`,
+      `📞 Phone: ${d.phone}`,
+      `📧 Email: ${d.email || "Not provided"}`, "",
+      `📍 Pickup: ${d.pickupAddress}`,
+      `🏁 Dropoff: ${d.dropoffAddress}`, "",
       `🚗 Vehicle: ${vehicleLabels[d.vehicleType] || d.vehicleType}`,
       `👥 Passengers: ${d.passengers}`,
       `📅 Date: ${d.pickupDate} at ${d.pickupTime}`,
-      `💳 Payment: ${payLabels[d.paymentMethod] || "Cash"}`,
+      `💳 Payment: ${payLabels[d.paymentMethod] || d.paymentMethod}`,
       d.isReturn ? `🔄 Return: ${d.returnDate} at ${d.returnTime}` : "",
       fareEstimate ? `💰 Est. Fare: $${fareEstimate.total.toFixed(2)}` : "",
       distanceKm ? `📏 Distance: ${distanceKm.toFixed(1)} km` : "",
@@ -1417,14 +1444,20 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="name" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Full Name</FormLabel>
+                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <span>Full Name</span>
+                      <span className="text-destructive font-black">*</span>
+                    </FormLabel>
                     <FormControl><Input placeholder="John Doe" {...field} className="bg-input/50" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="phone" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Mobile Number</FormLabel>
+                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <span>Mobile Number</span>
+                      <span className="text-destructive font-black">*</span>
+                    </FormLabel>
                     <FormControl><Input placeholder="0400 000 000" {...field} className="bg-input/50" /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1432,7 +1465,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
               </div>
               <FormField control={form.control} name="email" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Email Address</FormLabel>
+                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                    <span>Email Address</span>
+                    <span className="text-destructive font-black">*</span>
+                  </FormLabel>
                   <FormControl><Input placeholder="john@example.com" type="email" {...field} className="bg-input/50" /></FormControl>
                   <FormMessage />
                 </FormItem>
@@ -1445,7 +1481,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
 
               <FormField control={form.control} name="pickupAddress" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Pickup Address</FormLabel>
+                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                    <span>Pickup Address</span>
+                    <span className="text-destructive font-black">*</span>
+                  </FormLabel>
                   <FormControl>
                     <AddressInput
                       ref={pickupInputRef}
@@ -1467,7 +1506,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
 
               <FormField control={form.control} name="dropoffAddress" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Drop-off Address</FormLabel>
+                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                    <span>Drop-off Address</span>
+                    <span className="text-destructive font-black">*</span>
+                  </FormLabel>
                   <FormControl>
                     <AddressInput
                       ref={dropoffInputRef}
@@ -1529,14 +1571,20 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="pickupDate" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Select Date</FormLabel>
+                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <span>Select Date</span>
+                      <span className="text-destructive font-black">*</span>
+                    </FormLabel>
                     <FormControl><Input type="date" {...field} min={new Date().toISOString().split("T")[0]} className="bg-input/50" /></FormControl>
                     <FormMessage />
                   </FormItem>
                 )} />
                 <FormField control={form.control} name="pickupTime" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Select Time</FormLabel>
+                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <span>Select Time</span>
+                      <span className="text-destructive font-black">*</span>
+                    </FormLabel>
                     <FormControl><TimePicker value={field.value} onChange={field.onChange} /></FormControl>
                     <FormMessage />
                   </FormItem>
@@ -1551,7 +1599,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <FormField control={form.control} name="vehicleType" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Vehicle Type</FormLabel>
+                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <span>Vehicle Type</span>
+                      <span className="text-destructive font-black">*</span>
+                    </FormLabel>
                     <Select onValueChange={field.onChange} value={field.value || undefined}>
                       <FormControl>
                         <SelectTrigger className="bg-input/50"><SelectValue placeholder="Choose vehicle" /></SelectTrigger>
@@ -1569,7 +1620,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                 )} />
                 <FormField control={form.control} name="passengers" render={({ field }) => (
                   <FormItem>
-                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Passengers</FormLabel>
+                    <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center gap-1">
+                      <span>Passengers</span>
+                      <span className="text-destructive font-black">*</span>
+                    </FormLabel>
                     <Select onValueChange={field.onChange} defaultValue={field.value.toString()}>
                       <FormControl>
                         <SelectTrigger className="bg-input/50"><SelectValue placeholder="Passengers" /></SelectTrigger>
@@ -1599,14 +1653,20 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 p-4 border border-primary/30 rounded-lg bg-primary/5">
                   <FormField control={form.control} name="returnDate" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="uppercase text-xs font-bold text-primary tracking-wider">Return Date</FormLabel>
+                      <FormLabel className="uppercase text-xs font-bold text-primary tracking-wider flex items-center gap-1">
+                        <span>Return Date</span>
+                        <span className="text-destructive font-black">*</span>
+                      </FormLabel>
                       <FormControl><Input type="date" {...field} className="bg-input/50" /></FormControl>
                       <FormMessage />
                     </FormItem>
                   )} />
                   <FormField control={form.control} name="returnTime" render={({ field }) => (
                     <FormItem>
-                      <FormLabel className="uppercase text-xs font-bold text-primary tracking-wider">Return Time</FormLabel>
+                      <FormLabel className="uppercase text-xs font-bold text-primary tracking-wider flex items-center gap-1">
+                        <span>Return Time</span>
+                        <span className="text-destructive font-black">*</span>
+                      </FormLabel>
                       <FormControl><TimePicker value={field.value} onChange={field.onChange} /></FormControl>
                       <FormMessage />
                     </FormItem>
@@ -1616,7 +1676,10 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
 
               <FormField control={form.control} name="notes" render={({ field }) => (
                 <FormItem>
-                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider">Special Notes (Optional)</FormLabel>
+                  <FormLabel className="uppercase text-xs font-bold text-muted-foreground tracking-wider flex items-center justify-between">
+                    <span>Special Notes</span>
+                    <span className="text-muted-foreground font-normal lowercase tracking-normal text-[11px]">(Optional)</span>
+                  </FormLabel>
                   <FormControl>
                     <Textarea placeholder="Flight number, child seat required, bulky luggage..." className="resize-none bg-input/50 h-24" {...field} />
                   </FormControl>
@@ -1628,8 +1691,11 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
             {/* Payment Option */}
             <div className="space-y-3">
               <div className="flex items-center justify-between border-b border-border pb-2">
-                <h3 className="text-xl font-black uppercase tracking-wide">Payment Option</h3>
-                <span className="text-xs text-muted-foreground font-semibold">Pay in vehicle</span>
+                <h3 className="text-xl font-black uppercase tracking-wide flex items-center gap-1.5">
+                  <span>Payment Option</span>
+                  <span className="text-destructive font-black">*</span>
+                </h3>
+                <span className="text-xs text-muted-foreground font-semibold">Select to reveal fare estimate</span>
               </div>
 
               <FormField control={form.control} name="paymentMethod" render={({ field }) => (
@@ -1639,10 +1705,18 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                       {/* Cash */}
                       <button
                         type="button"
-                        onClick={() => field.onChange("cash")}
+                        onClick={() => {
+                          field.onChange("cash");
+                          if (!distanceKm || !vehicleType) {
+                            toast({
+                              title: "Payment selected: Cash",
+                              description: "Please ensure pickup, drop-off address and vehicle are chosen above to calculate fare.",
+                            });
+                          }
+                        }}
                         className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
                           field.value === "cash"
-                            ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                            ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary"
                             : "border-border bg-card/60 hover:bg-secondary/60 hover:border-muted-foreground/30"
                         }`}
                       >
@@ -1651,7 +1725,7 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                             <span className="text-2xl">💵</span>
                           </div>
                           {field.value === "cash" ? (
-                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            <CheckCircle2 className="w-5 h-5 text-primary" />
                           ) : (
                             <span className="w-4 h-4 rounded-full border border-muted-foreground/40" />
                           )}
@@ -1665,10 +1739,18 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                       {/* Credit / Debit Card */}
                       <button
                         type="button"
-                        onClick={() => field.onChange("card")}
+                        onClick={() => {
+                          field.onChange("card");
+                          if (!distanceKm || !vehicleType) {
+                            toast({
+                              title: "Payment selected: Credit / Debit Card",
+                              description: "Please ensure pickup, drop-off address and vehicle are chosen above to calculate fare.",
+                            });
+                          }
+                        }}
                         className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
                           field.value === "card"
-                            ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                            ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary"
                             : "border-border bg-card/60 hover:bg-secondary/60 hover:border-muted-foreground/30"
                         }`}
                       >
@@ -1677,7 +1759,7 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                             <span className="text-2xl">💳</span>
                           </div>
                           {field.value === "card" ? (
-                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            <CheckCircle2 className="w-5 h-5 text-primary" />
                           ) : (
                             <span className="w-4 h-4 rounded-full border border-muted-foreground/40" />
                           )}
@@ -1691,10 +1773,18 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                       {/* Cabcharge */}
                       <button
                         type="button"
-                        onClick={() => field.onChange("cabcharge")}
+                        onClick={() => {
+                          field.onChange("cabcharge");
+                          if (!distanceKm || !vehicleType) {
+                            toast({
+                              title: "Payment selected: Cabcharge",
+                              description: "Please ensure pickup, drop-off address and vehicle are chosen above to calculate fare.",
+                            });
+                          }
+                        }}
                         className={`p-3.5 rounded-lg border text-left transition-all cursor-pointer relative flex flex-col justify-between ${
                           field.value === "cabcharge"
-                            ? "border-primary bg-primary/10 shadow-sm ring-1 ring-primary"
+                            ? "border-primary bg-primary/10 shadow-sm ring-2 ring-primary"
                             : "border-border bg-card/60 hover:bg-secondary/60 hover:border-muted-foreground/30"
                         }`}
                       >
@@ -1703,7 +1793,7 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                             <CabchargeIcon className="w-16 h-10 drop-shadow-md rounded" />
                           </div>
                           {field.value === "cabcharge" ? (
-                            <CheckCircle2 className="w-4 h-4 text-primary" />
+                            <CheckCircle2 className="w-5 h-5 text-primary" />
                           ) : (
                             <span className="w-4 h-4 rounded-full border border-muted-foreground/40" />
                           )}
@@ -1718,7 +1808,7 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
                       </button>
                     </div>
                   </FormControl>
-                  <FormMessage />
+                  <FormMessage className="text-xs font-bold text-destructive mt-1.5" />
                 </FormItem>
               )} />
             </div>
@@ -1795,12 +1885,18 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
               </div>
               <div>
                 <p className="font-bold uppercase tracking-wide text-foreground">
-                  {distanceKm && !vehicleType ? "Choose Vehicle to View Fare" : "Live Fare Estimator"}
+                  {!paymentMethod
+                    ? (distanceKm && vehicleType ? "Select Payment Option to View Fare" : "Live Fare Estimator")
+                    : (distanceKm && !vehicleType ? "Choose Vehicle to View Fare" : "Live Fare Estimator")}
                 </p>
                 <p className="text-xs text-muted-foreground mt-1">
-                  {distanceKm && !vehicleType
-                    ? `Route calculated (${distanceKm.toFixed(1)} km). Please choose your vehicle above to view your exact live traffic fare.`
-                    : "Enter pickup and drop-off addresses to get a real-time fare calculation with live traffic and regulated rates."}
+                  {!paymentMethod
+                    ? (distanceKm && vehicleType
+                        ? "Select your payment option (Cash, Card, or Cabcharge) below to view your exact regulated fare estimate."
+                        : "Enter pickup and drop-off addresses, select your vehicle, and choose a payment method to calculate your live regulated fare.")
+                    : (distanceKm && !vehicleType
+                        ? `Route calculated (${distanceKm.toFixed(1)} km). Please choose your vehicle above to view your exact live traffic fare.`
+                        : "Enter pickup and drop-off addresses to get a real-time fare calculation with live traffic and regulated rates.")}
                 </p>
               </div>
             </CardContent>

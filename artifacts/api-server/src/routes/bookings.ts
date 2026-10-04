@@ -372,47 +372,279 @@ function buildEmailHtml(data: any, bookingId: string, targetEmailDisplay?: strin
     ? "Credit / Debit Card (Contactless)"
     : "Cash (Pay Driver)";
 
+  const vehicleLabel = VEHICLE_LABELS[data.vehicleType] || data.vehicleType;
   const targetEmail = targetEmailDisplay || TARGET_BOOKING_EMAIL;
+  const cleanPhone = (data.phone || "").replace(/[^0-9+]/g, "");
+  const whatsappClean = cleanPhone.startsWith("0") ? `61${cleanPhone.slice(1)}` : cleanPhone.replace(/^\+/, "");
 
-  return `
-<!DOCTYPE html>
-<html>
-<head><meta charset="utf-8"></head>
-<body style="font-family:Arial,sans-serif;background:#111;color:#fff;padding:20px;margin:0">
-<div style="max-width:600px;margin:0 auto;background:#1a1a1a;border:2px solid #f97316;border-radius:10px;padding:24px;box-shadow:0 4px 12px rgba(0,0,0,0.5)">
-  <div style="text-align:center;border-bottom:2px solid #333;padding-bottom:16px;margin-bottom:20px">
-    <h1 style="color:#f97316;margin:0 0 6px;font-size:24px;text-transform:uppercase;letter-spacing:1px">🚖 Melbourne Taxis</h1>
-    <p style="color:#f97316;font-size:14px;font-weight:bold;margin:0">NEW ONLINE BOOKING DISPATCH</p>
-    <p style="color:#aaa;font-size:12px;margin:6px 0 0">Target Dispatch: <strong style="color:#fff">${targetEmail}</strong></p>
-  </div>
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta http-equiv="X-UA-Compatible" content="IE=edge">
+  <title>Booking ${bookingId}</title>
+  <style type="text/css">
+    body, table, td, a { -webkit-text-size-adjust: 100%; -ms-text-size-adjust: 100%; }
+    table, td { mso-table-lspace: 0pt; mso-table-rspace: 0pt; }
+    body { margin: 0; padding: 0; width: 100% !important; background-color: #0b0f17; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+  </style>
+</head>
+<body style="margin:0;padding:16px 8px;background-color:#0b0f17;color:#f1f5f9;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;-webkit-font-smoothing:antialiased;">
+  <center style="width:100%;background-color:#0b0f17;">
+    <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="max-width:580px;margin:0 auto;background-color:#151c28;border:1px solid #334155;border-radius:12px;overflow:hidden;box-shadow:0 8px 24px rgba(0,0,0,0.5);">
+      
+      <!-- Header Banner -->
+      <tr>
+        <td style="padding:24px 20px 18px;background-color:#1e293b;border-bottom:2px solid #f59e0b;text-align:center;">
+          <div style="font-size:24px;line-height:30px;font-weight:800;color:#f59e0b;letter-spacing:1px;text-transform:uppercase;margin:0;">
+            🚖 MELBOURNE TAXIS
+          </div>
+          <div style="font-size:12px;line-height:16px;font-weight:700;color:#94a3b8;letter-spacing:1.5px;text-transform:uppercase;margin-top:4px;">
+            NEW ONLINE BOOKING DISPATCH
+          </div>
+          <div style="margin-top:12px;display:inline-block;background-color:#0b0f17;border:1px solid #f59e0b;border-radius:8px;padding:8px 18px;">
+            <span style="font-size:10px;line-height:14px;font-weight:600;color:#94a3b8;text-transform:uppercase;display:block;letter-spacing:1px;">Booking Reference</span>
+            <span style="font-size:20px;line-height:26px;font-weight:800;color:#f59e0b;letter-spacing:1.5px;font-family:monospace;">${bookingId}</span>
+          </div>
+        </td>
+      </tr>
 
-  <div style="background:#262626;border-radius:6px;padding:12px;margin-bottom:16px;text-align:center">
-    <p style="color:#888;font-size:12px;text-transform:uppercase;margin:0 0 4px;font-weight:bold">Booking Reference</p>
-    <p style="color:#fff;font-size:20px;font-weight:bold;margin:0;letter-spacing:1px">${bookingId}</p>
-  </div>
+      <!-- Body Padding Wrapper -->
+      <tr>
+        <td style="padding:20px 16px;">
 
-  <table style="width:100%;border-collapse:collapse;font-size:14px">
-    <tr><td style="padding:10px 8px;color:#f97316;width:40%;border-bottom:1px solid #2a2a2a"><strong>Passenger Name</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a"><strong style="font-size:16px">${data.name}</strong></td></tr>
-    <tr style="background:#222"><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Mobile Phone</strong></td><td style="padding:10px 8px;border-bottom:1px solid #2a2a2a"><a href="tel:${data.phone}" style="color:#fff;font-weight:bold;text-decoration:none">${data.phone}</a></td></tr>
-    <tr><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Customer Email</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a">${data.email || "N/A"}</td></tr>
-    <tr style="background:#222"><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>📍 Pickup Location</strong></td><td style="padding:10px 8px;color:#fff;font-weight:bold;border-bottom:1px solid #2a2a2a">${data.pickupAddress}</td></tr>
-    <tr><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>🏁 Destination</strong></td><td style="padding:10px 8px;color:#fff;font-weight:bold;border-bottom:1px solid #2a2a2a">${data.dropoffAddress}</td></tr>
-    <tr style="background:#222"><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Vehicle Type</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a">${VEHICLE_LABELS[data.vehicleType] || data.vehicleType}</td></tr>
-    <tr><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Passengers</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a">${data.passengers}</td></tr>
-    <tr style="background:#222"><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Date & Time</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a"><strong style="color:#f97316">${data.pickupDate} at ${data.pickupTime}</strong></td></tr>
-    ${data.isReturn ? `<tr><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Return Journey</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a">${data.returnDate} at ${data.returnTime}</td></tr>` : ""}
-    ${data.distanceKm ? `<tr style="background:#222"><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Est. Distance</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a">${Number(data.distanceKm).toFixed(1)} km</td></tr>` : ""}
-    ${data.estimatedFare ? `<tr><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Estimated Fare</strong></td><td style="padding:10px 8px;border-bottom:1px solid #2a2a2a"><strong style="color:#f97316;font-size:18px">$${Number(data.estimatedFare).toFixed(2)}</strong></td></tr>` : ""}
-    <tr style="background:#222"><td style="padding:10px 8px;color:#f97316;border-bottom:1px solid #2a2a2a"><strong>Payment Choice</strong></td><td style="padding:10px 8px;color:#fff;border-bottom:1px solid #2a2a2a"><strong>${payLabel}</strong></td></tr>
-    ${data.notes ? `<tr><td style="padding:10px 8px;color:#f97316"><strong>Special Notes</strong></td><td style="padding:10px 8px;color:#fff">${data.notes}</td></tr>` : ""}
-  </table>
+          <!-- SECTION 1: PICKUP & DROPOFF ROUTE (Stacked Full Width to Prevent Data Overlap) -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:16px;background-color:#0f172a;border:1px solid #334155;border-radius:10px;overflow:hidden;">
+            <tr>
+              <td style="padding:14px 16px;border-bottom:1px solid #1e293b;vertical-align:top;">
+                <div style="font-size:11px;line-height:16px;font-weight:700;color:#22c55e;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">
+                  🟢 PICKUP LOCATION
+                </div>
+                <div style="font-size:15px;line-height:22px;font-weight:700;color:#ffffff;word-break:break-word;overflow-wrap:break-word;">
+                  ${data.pickupAddress}
+                </div>
+              </td>
+            </tr>
+            <tr>
+              <td style="padding:14px 16px;vertical-align:top;">
+                <div style="font-size:11px;line-height:16px;font-weight:700;color:#f59e0b;text-transform:uppercase;letter-spacing:1px;margin-bottom:4px;">
+                  🏁 DROP-OFF DESTINATION
+                </div>
+                <div style="font-size:15px;line-height:22px;font-weight:700;color:#ffffff;word-break:break-word;overflow-wrap:break-word;">
+                  ${data.dropoffAddress}
+                </div>
+              </td>
+            </tr>
+          </table>
 
-  <div style="margin-top:24px;display:flex;gap:12px;justify-content:center">
-    <a href="tel:${data.phone}" style="display:inline-block;padding:12px 24px;background:#f97316;color:#000;font-weight:bold;font-size:15px;text-decoration:none;border-radius:6px;text-transform:uppercase">📞 Call Passenger</a>
-  </div>
-</div>
+          <!-- SECTION 2: SCHEDULED TIME -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:16px;background-color:#1e293b;border-left:4px solid #f59e0b;border-radius:6px;">
+            <tr>
+              <td style="padding:12px 16px;vertical-align:top;">
+                <div style="font-size:11px;line-height:16px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;">
+                  📅 SCHEDULED PICKUP TIME
+                </div>
+                <div style="font-size:18px;line-height:24px;font-weight:800;color:#f59e0b;margin-top:4px;">
+                  ${data.pickupDate} &nbsp;•&nbsp; ${data.pickupTime}
+                </div>
+                ${data.isReturn ? `
+                <div style="margin-top:8px;padding-top:8px;border-top:1px dashed #334155;">
+                  <span style="font-size:11px;line-height:16px;font-weight:700;color:#38bdf8;text-transform:uppercase;">🔄 RETURN JOURNEY:</span>
+                  <span style="font-size:14px;line-height:20px;font-weight:700;color:#ffffff;margin-left:6px;">${data.returnDate} at ${data.returnTime}</span>
+                </div>` : ''}
+              </td>
+            </tr>
+          </table>
+
+          <!-- SECTION 3: PASSENGER CONTACT INFO -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:16px;background-color:#0f172a;border:1px solid #334155;border-radius:10px;">
+            <tr>
+              <td style="padding:14px 16px;">
+                <div style="font-size:11px;line-height:16px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">
+                  👤 PASSENGER INFORMATION
+                </div>
+                
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;width:115px;vertical-align:top;font-weight:600;">
+                      Passenger:
+                    </td>
+                    <td style="padding:6px 0;font-size:15px;line-height:22px;color:#ffffff;font-weight:700;vertical-align:top;word-break:break-word;">
+                      ${data.name}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;vertical-align:top;font-weight:600;">
+                      Phone Number:
+                    </td>
+                    <td style="padding:6px 0;font-size:16px;line-height:22px;color:#38bdf8;font-weight:800;vertical-align:top;word-break:break-word;">
+                      <a href="tel:${cleanPhone}" style="color:#38bdf8;text-decoration:underline;">${data.phone}</a>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;vertical-align:top;font-weight:600;">
+                      Email Address:
+                    </td>
+                    <td style="padding:6px 0;font-size:14px;line-height:20px;color:#e2e8f0;vertical-align:top;word-break:break-word;">
+                      ${data.email ? `<a href="mailto:${data.email}" style="color:#e2e8f0;text-decoration:none;">${data.email}</a>` : '<span style="color:#64748b">Not provided</span>'}
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- SECTION 4: VEHICLE & FARE BREAKDOWN -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%" style="margin-bottom:20px;background-color:#0f172a;border:1px solid #334155;border-radius:10px;">
+            <tr>
+              <td style="padding:14px 16px;">
+                <div style="font-size:11px;line-height:16px;font-weight:700;color:#94a3b8;text-transform:uppercase;letter-spacing:1px;margin-bottom:10px;">
+                  🚕 VEHICLE & FARE DETAILS
+                </div>
+
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;width:115px;vertical-align:top;font-weight:600;">
+                      Vehicle Type:
+                    </td>
+                    <td style="padding:6px 0;font-size:14px;line-height:20px;color:#ffffff;font-weight:700;vertical-align:top;">
+                      ${vehicleLabel}
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;vertical-align:top;font-weight:600;">
+                      Passengers:
+                    </td>
+                    <td style="padding:6px 0;font-size:14px;line-height:20px;color:#ffffff;font-weight:700;vertical-align:top;">
+                      ${data.passengers} Passenger${Number(data.passengers) > 1 ? 's' : ''}
+                    </td>
+                  </tr>
+                  ${data.distanceKm ? `
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;vertical-align:top;font-weight:600;">
+                      Est. Distance:
+                    </td>
+                    <td style="padding:6px 0;font-size:14px;line-height:20px;color:#ffffff;font-weight:700;vertical-align:top;">
+                      ${Number(data.distanceKm).toFixed(1)} km
+                    </td>
+                  </tr>` : ''}
+                  ${data.estimatedFare ? `
+                  <tr>
+                    <td style="padding:8px 0;font-size:13px;line-height:20px;color:#22c55e;vertical-align:middle;font-weight:700;">
+                      Est. Total Fare:
+                    </td>
+                    <td style="padding:8px 0;font-size:20px;line-height:24px;color:#22c55e;font-weight:800;vertical-align:middle;">
+                      $${Number(data.estimatedFare).toFixed(2)} AUD
+                    </td>
+                  </tr>` : ''}
+                  <tr>
+                    <td style="padding:6px 0;font-size:13px;line-height:20px;color:#94a3b8;vertical-align:top;font-weight:600;">
+                      Payment Choice:
+                    </td>
+                    <td style="padding:6px 0;font-size:14px;line-height:20px;color:#ffffff;font-weight:700;vertical-align:top;">
+                      ${payLabel}
+                    </td>
+                  </tr>
+                  ${data.notes ? `
+                  <tr>
+                    <td style="padding:8px 0 0;font-size:13px;line-height:20px;color:#f59e0b;vertical-align:top;font-weight:600;">
+                      Special Notes:
+                    </td>
+                    <td style="padding:8px 0 0;font-size:14px;line-height:22px;color:#fde68a;font-weight:600;vertical-align:top;word-break:break-word;">
+                      ${data.notes}
+                    </td>
+                  </tr>` : ''}
+                </table>
+              </td>
+            </tr>
+          </table>
+
+          <!-- SECTION 5: ONE-TOUCH ACTION BUTTONS (Email client safe table buttons - NO FLEXBOX) -->
+          <table role="presentation" border="0" cellpadding="0" cellspacing="0" width="100%">
+            <tr>
+              <td align="center" style="padding-bottom:10px;">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="border-radius:8px;background-color:#f59e0b;padding:12px 24px;">
+                      <a href="tel:${cleanPhone}" style="font-size:15px;font-weight:800;color:#000000;text-decoration:none;display:inline-block;letter-spacing:0.5px;">
+                        📞 &nbsp; CALL PASSENGER (${data.phone})
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+            ${whatsappClean ? `
+            <tr>
+              <td align="center">
+                <table role="presentation" border="0" cellpadding="0" cellspacing="0">
+                  <tr>
+                    <td align="center" style="border-radius:8px;background-color:#22c55e;padding:10px 20px;">
+                      <a href="https://wa.me/${whatsappClean}" style="font-size:13px;font-weight:700;color:#ffffff;text-decoration:none;display:inline-block;">
+                        💬 &nbsp; WhatsApp Passenger
+                      </a>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>` : ''}
+          </table>
+
+        </td>
+      </tr>
+
+      <!-- Footer -->
+      <tr>
+        <td style="padding:16px 20px;background-color:#0b0f17;border-top:1px solid #1e293b;text-align:center;">
+          <div style="font-size:12px;line-height:18px;color:#64748b;">
+            Direct First-Party Dispatch • Melbourne Taxis 24/7
+          </div>
+          <div style="font-size:11px;line-height:16px;color:#475569;margin-top:4px;">
+            Target Dispatch: ${targetEmail}
+          </div>
+        </td>
+      </tr>
+
+    </table>
+  </center>
 </body>
 </html>`;
+}
+
+function buildEmailText(data: any, bookingId: string) {
+  const vehicle = VEHICLE_LABELS[data.vehicleType] || data.vehicleType;
+  const payLabel = data.paymentMethod === "cabcharge"
+    ? "Cabcharge (eTicket / FASTCARD)"
+    : data.paymentMethod === "card"
+    ? "Credit / Debit Card"
+    : "Cash (Pay Driver)";
+
+  let text = `========================================\n`;
+  text += `  🚖 MELBOURNE TAXIS — NEW BOOKING\n`;
+  text += `========================================\n\n`;
+  text += `Booking Reference: ${bookingId}\n`;
+  text += `Pickup Date & Time: ${data.pickupDate} at ${data.pickupTime}\n`;
+  if (data.isReturn) {
+    text += `Return Journey:     ${data.returnDate} at ${data.returnTime}\n`;
+  }
+  text += `\n--- ROUTE ---\n`;
+  text += `Pickup:   ${data.pickupAddress}\n`;
+  text += `Dropoff:  ${data.dropoffAddress}\n`;
+  text += `\n--- PASSENGER ---\n`;
+  text += `Name:     ${data.name}\n`;
+  text += `Phone:    ${data.phone}\n`;
+  text += `Email:    ${data.email || "Not provided"}\n`;
+  text += `\n--- VEHICLE & FARE ---\n`;
+  text += `Vehicle:      ${vehicle}\n`;
+  text += `Passengers:   ${data.passengers}\n`;
+  if (data.distanceKm) text += `Est Distance: ${Number(data.distanceKm).toFixed(1)} km\n`;
+  if (data.estimatedFare) text += `Est Fare:     $${Number(data.estimatedFare).toFixed(2)} AUD\n`;
+  text += `Payment:      ${payLabel}\n`;
+  if (data.notes) text += `Notes:        ${data.notes}\n`;
+  text += `\nDirect Call: tel:${data.phone}\n`;
+  text += `========================================\n`;
+  return text;
 }
 
 function buildWhatsAppMessage(data: any, bookingId: string) {
@@ -456,11 +688,13 @@ async function dispatchBookingEmail(data: any, bookingId: string, logger: any) {
   if (transporter && recipientList.length > 0) {
     try {
       const emailHtml = buildEmailHtml(data, bookingId, settings.ownerEmails);
+      const emailText = buildEmailText(data, bookingId);
       for (const recipient of recipientList) {
         await transporter.sendMail({
           from: settings.emailUser ? `Melbourne Taxis <${settings.emailUser}>` : `Melbourne Taxis <${recipient}>`,
           to: recipient,
           subject: `🚖 New Booking ${bookingId} — ${data.name} — ${data.pickupDate} ${data.pickupTime}`,
+          text: emailText,
           html: emailHtml,
         });
         logger.info({ bookingId, recipient }, "Booking email sent directly via first-party SMTP to " + recipient);
@@ -472,6 +706,7 @@ async function dispatchBookingEmail(data: any, bookingId: string, logger: any) {
           from: settings.emailUser ? `Melbourne Taxis <${settings.emailUser}>` : `Melbourne Taxis <${recipientList[0]}>`,
           to: data.email,
           subject: `Your Melbourne Taxi booking is received — ${bookingId}`,
+          text: emailText.replace("NEW BOOKING DISPATCH", "BOOKING CONFIRMATION"),
           html: emailHtml.replace(
             "NEW ONLINE BOOKING DISPATCH",
             "BOOKING CONFIRMATION & DETAILS"
