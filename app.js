@@ -1564,7 +1564,7 @@ var routes_default2 = router5;
 var app = express();
 var PORT = Number(process.env.PORT) || 3e3;
 var isProduction = process.env.NODE_ENV === "production" || !process.argv[1]?.endsWith("server.ts");
-app.use(compression());
+app.use(compression({ level: 6, threshold: 0 }));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -1600,6 +1600,7 @@ async function start() {
       }
     }));
     app.use((_req, res) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.sendFile(path2.join(distPath, "index.html"));
     });
   }

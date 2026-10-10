@@ -9,7 +9,7 @@ const app = express();
 const PORT = Number(process.env.PORT) || 3000;
 const isProduction = process.env.NODE_ENV === "production" || !process.argv[1]?.endsWith("server.ts");
 
-app.use(compression());
+app.use(compression({ level: 6, threshold: 0 }));
 app.use(cors());
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
@@ -52,6 +52,7 @@ async function start() {
       },
     }));
     app.use((_req: Request, res: Response) => {
+      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
       res.sendFile(path.join(distPath, "index.html"));
     });
   }

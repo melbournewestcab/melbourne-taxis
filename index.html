@@ -59,14 +59,15 @@
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;900&display=swap" rel="stylesheet" />
     </noscript>
 
-    <!-- Preload hero image with high fetchpriority -->
-    <link rel="preload" as="image" href="/images/hero-taxi.jpg" fetchpriority="high" />
+    <!-- Preload hero image with high fetchpriority (responsive mobile & desktop) -->
+    <link rel="preload" as="image" href="/images/hero-taxi-mobile.webp" media="(max-width: 640px)" type="image/webp" fetchpriority="high" />
+    <link rel="preload" as="image" href="/images/hero-taxi.webp" media="(min-width: 641px)" type="image/webp" fetchpriority="high" />
 
     <!-- Open Graph / Social -->
     <meta property="og:type" content="website" />
     <meta property="og:title" content="Taxi to Melbourne Airport &amp; Melbourne Taxis | 24/7 Cab Booking" />
     <meta property="og:description" content="Reliable 24/7 Taxi to Melbourne Airport (Tullamarine &amp; Avalon) and all Melbourne suburbs. Fixed airport rates, Maxi Taxis &amp; Silver Service. Call 0435 304 821." />
-    <meta property="og:image" content="/images/hero-taxi.png" />
+    <meta property="og:image" content="/images/hero-taxi.jpg" />
     <meta property="og:site_name" content="Melbourne Taxis" />
     <meta property="og:locale" content="en_AU" />
     <meta property="og:locality" content="Melbourne" />
@@ -146,7 +147,26 @@
     </script>
   </head>
   <body>
-    <div id="root"></div>
+    <div id="root">
+      <div style="min-height:100vh;background-color:#0f172a;color:#f8fafc;font-family:Inter,system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;">
+        <header style="height:64px;border-bottom:1px solid #1e293b;display:flex;align-items:center;justify-content:space-between;padding:0 16px;max-width:1200px;margin:0 auto;width:100%;box-sizing:border-box;">
+          <div style="font-weight:900;font-size:20px;letter-spacing:-0.5px;text-transform:uppercase;">MELBOURNE <span style="color:#f97316;">TAXIS</span></div>
+          <div style="display:flex;gap:12px;align-items:center;">
+            <a href="tel:0435304821" style="background:#f97316;color:#ffffff;padding:8px 16px;border-radius:6px;font-weight:700;font-size:14px;text-decoration:none;">0435 304 821</a>
+          </div>
+        </header>
+        <section style="flex:1;display:flex;align-items:center;justify-content:center;text-align:center;padding:48px 16px;">
+          <div style="max-width:800px;margin:0 auto;">
+            <h1 style="font-size:36px;font-weight:900;text-transform:uppercase;margin:0 0 16px 0;line-height:1.1;">MELBOURNE <span style="color:#f97316;">TAXIS</span></h1>
+            <p style="font-size:18px;color:#94a3b8;margin:0 0 32px 0;line-height:1.5;">Fast, reliable door-to-door taxi booking across all Melbourne suburbs, Tullamarine &amp; Avalon Airports.</p>
+            <div style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+              <a href="/book" style="background:#f97316;color:#ffffff;padding:14px 28px;border-radius:6px;font-weight:900;text-decoration:none;font-size:16px;">BOOK TAXI ONLINE</a>
+              <a href="tel:0435304821" style="border:2px solid #ffffff;color:#ffffff;padding:12px 26px;border-radius:6px;font-weight:900;text-decoration:none;font-size:16px;">CALL 0435 304 821</a>
+            </div>
+          </div>
+        </section>
+      </div>
+    </div>
     <script type="module" src="/src/main.tsx"></script>
   </body>
 </html>

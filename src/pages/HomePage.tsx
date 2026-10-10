@@ -148,13 +148,19 @@ export default function HomePage() {
       {/* ── Hero ── */}
       <section className="relative min-h-[85vh] w-full flex items-center justify-center overflow-hidden bg-background py-16 md:py-24">
         <div className="absolute inset-0 z-0">
-          <img
-            src="/images/hero-taxi.jpg"
-            alt="Melbourne Taxis cab driving through Melbourne"
-            className="w-full h-full object-cover opacity-35"
-            decoding="async"
-            {...({ fetchpriority: "high" } as any)}
-          />
+          <picture>
+            <source media="(max-width: 640px)" srcSet="/images/hero-taxi-mobile.webp" type="image/webp" />
+            <source srcSet="/images/hero-taxi.webp" type="image/webp" />
+            <img
+              src="/images/hero-taxi.jpg"
+              alt="Melbourne Taxis cab driving through Melbourne"
+              className="w-full h-full object-cover opacity-35"
+              decoding="async"
+              width="1200"
+              height="800"
+              {...({ fetchpriority: "high" } as any)}
+            />
+          </picture>
           <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/60 to-background" />
         </div>
 
@@ -322,11 +328,11 @@ export default function HomePage() {
 
           {(() => {
             const vehicles = [
-              { type: "Standard Sedan",       img: "fleet-sedan.png",          pax: "1–4",      id: "sedan", desc: "Toyota Camry hybrid sedans for everyday city commutes & airport transfers." },
-              { type: "Premium SUV",           img: "fleet-suv.png",            pax: "1–5",      id: "suv", desc: "Elevated comfort with abundant luggage room for family airport departures." },
-              { type: "Silver Service",        img: "fleet-silver-service.png", pax: "1–4",      id: "silver_service", desc: "Luxury executive Lexus sedans driven by experienced suited chauffeurs." },
-              { type: "6 Seater People Mover", img: "fleet-six-seater.png",     pax: "5–6",      id: "six_seater", desc: "Spacious Kia Carnival people movers for mid-sized family groups." },
-              { type: "Maxi Taxi (11 Seater)", img: "fleet-maxi-taxi.png",      pax: "Up to 11", id: "maxi_taxi", desc: "High-capacity Toyota HiAce vans for sports events, tours, and large luggage." },
+              { type: "Standard Sedan",       img: "fleet-sedan.webp",          pax: "1–4",      id: "sedan", desc: "Toyota Camry hybrid sedans for everyday city commutes & airport transfers." },
+              { type: "Premium SUV",           img: "fleet-suv.webp",            pax: "1–5",      id: "suv", desc: "Elevated comfort with abundant luggage room for family airport departures." },
+              { type: "Silver Service",        img: "fleet-silver-service.webp", pax: "1–4",      id: "silver_service", desc: "Luxury executive Lexus sedans driven by experienced suited chauffeurs." },
+              { type: "6 Seater People Mover", img: "fleet-six-seater.webp",     pax: "5–6",      id: "six_seater", desc: "Spacious Kia Carnival people movers for mid-sized family groups." },
+              { type: "Maxi Taxi (11 Seater)", img: "fleet-maxi-taxi.webp",      pax: "Up to 11", id: "maxi_taxi", desc: "High-capacity Toyota HiAce vans for sports events, tours, and large luggage." },
             ];
             const FleetCard = ({ v, i }: { v: typeof vehicles[0]; i: number }) => (
               <Link key={i} href={`/book?vehicle=${v.id}`} className="group cursor-pointer block">

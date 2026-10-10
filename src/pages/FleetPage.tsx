@@ -15,7 +15,7 @@ export default function FleetPage() {
   const fleet = [
     {
       name: "Standard Sedan",
-      img: "fleet-sedan.png",
+      img: "fleet-sedan.webp",
       pax: "1–4 Passengers",
       bags: "2–3 Large Suitcases",
       id: "sedan",
@@ -24,7 +24,7 @@ export default function FleetPage() {
     },
     {
       name: "Premium SUV",
-      img: "fleet-suv.png",
+      img: "fleet-suv.webp",
       pax: "1–5 Passengers",
       bags: "4–5 Large Suitcases",
       id: "suv",
@@ -33,7 +33,7 @@ export default function FleetPage() {
     },
     {
       name: "Silver Service Luxury",
-      img: "fleet-silver-service.png",
+      img: "fleet-silver-service.webp",
       pax: "1–4 Passengers",
       bags: "2–3 Suitcases",
       id: "silver_service",
@@ -42,7 +42,7 @@ export default function FleetPage() {
     },
     {
       name: "6 Seater People Mover",
-      img: "fleet-six-seater.png",
+      img: "fleet-six-seater.webp",
       pax: "5–6 Passengers",
       bags: "4 Suitcases",
       id: "six_seater",
@@ -51,7 +51,7 @@ export default function FleetPage() {
     },
     {
       name: "Maxi Taxi (11 Seater)",
-      img: "fleet-maxi-taxi.png",
+      img: "fleet-maxi-taxi.webp",
       pax: "Up to 11 Passengers",
       bags: "8–12 Suitcases",
       id: "maxi_taxi",
