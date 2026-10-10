@@ -1,12 +1,16 @@
 {
-  "name": "bacchus-marsh-taxi",
+  "name": "melbourne-taxis",
   "version": "1.0.0",
   "private": true,
   "type": "module",
+  "main": "server.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "tsx server.ts",
     "build": "vite build && esbuild server.ts --bundle --platform=node --format=cjs --packages=external --sourcemap --outfile=dist/server.cjs",
-    "start": "node dist/server.cjs",
+    "start": "node server.js",
     "lint": "tsc --noEmit"
   },
   "dependencies": {

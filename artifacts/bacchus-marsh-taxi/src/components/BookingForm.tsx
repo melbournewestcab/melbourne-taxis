@@ -1013,7 +1013,7 @@ interface BookingFormProps {
   showMinimumPopup?: boolean;
 }
 
-export function BookingForm({ initialVehicle = "", showMinimumToast = true, showMinimumPopup }: BookingFormProps) {
+export function BookingForm({ initialVehicle = "", showMinimumToast = false, showMinimumPopup = false }: BookingFormProps) {
   const { toast } = useToast();
   const createBooking = useCreateBooking();
   const estimateFare = useEstimateFare();
@@ -1048,7 +1048,6 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
   const [locating, setLocating] = useState(false);
   const [pickupAccuracy, setPickupAccuracy] = useState<number | null>(null);
   const [showFareDialog, setShowFareDialog] = useState(false);
-  const [showMinimumDialog, setShowMinimumDialog] = useState(false);
   const [showRateCardDialog, setShowRateCardDialog] = useState(false);
   const [confirmedBooking, setConfirmedBooking] = useState<{
     bookingId: string;
@@ -1159,12 +1158,6 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
       setFareEstimate(null);
     }
   }, [pickupCoords, dropoffCoords]);
-
-  useEffect(() => {
-    const shouldShow = showMinimumPopup !== undefined ? showMinimumPopup : showMinimumToast;
-    if (!shouldShow) return;
-    setShowMinimumDialog(true);
-  }, [showMinimumToast, showMinimumPopup]);
 
   // Interactive pin adjustment from map drag or map click
   const handlePickupCoordsChange = useCallback(async (newCoords: Coordinates) => {
@@ -2040,52 +2033,6 @@ export function BookingForm({ initialVehicle = "", showMinimumToast = true, show
             <DialogFooter className="pt-2">
               <Button className="w-full h-11 font-bold uppercase tracking-wider" onClick={() => setShowRateCardDialog(false)}>
                 Understood
-              </Button>
-            </DialogFooter>
-          </div>
-        </DialogContent>
-      </Dialog>
-
-      {/* ── Minimum Fare Popup Window (Estimate Style) ── */}
-      <Dialog open={showMinimumDialog} onOpenChange={setShowMinimumDialog}>
-        <DialogContent className="sm:max-w-sm">
-          <DialogHeader>
-            <DialogTitle className="text-center text-xl font-black uppercase tracking-wide">
-              Minimum Fare
-            </DialogTitle>
-          </DialogHeader>
-          <div className="space-y-5">
-            <div className="text-center py-4 px-3 rounded-lg bg-secondary/50 border border-border">
-              <div className="text-xs text-muted-foreground uppercase tracking-widest font-bold">Base Minimum Rate</div>
-              <div className="text-6xl font-black text-primary mt-2">$25.00</div>
-              <div className="text-xs font-semibold text-primary/90 mt-1.5 uppercase tracking-wider">
-                Flat Rate · Trips Up To 5 km
-              </div>
-            </div>
-
-            <div className="space-y-2.5 text-xs">
-              <div className="flex items-start gap-2.5 p-2.5 rounded-md bg-secondary/30 border border-border/70">
-                <span className="text-primary font-bold text-sm leading-none mt-0.5">•</span>
-                <p className="text-muted-foreground leading-relaxed">
-                  <strong className="text-foreground">Trips under 5 km</strong> are charged a flat <strong className="text-primary font-bold">$25 minimum</strong>.
-                </p>
-              </div>
-            </div>
-
-            <DialogFooter className="flex-col gap-2 sm:gap-0 pt-1">
-              <Button
-                className="w-full h-12 font-bold uppercase tracking-wider"
-                onClick={() => setShowMinimumDialog(false)}
-                data-testid="btn-close-min-fare-dialog"
-              >
-                Got It — Continue
-              </Button>
-              <Button
-                variant="outline"
-                className="w-full"
-                onClick={() => setShowMinimumDialog(false)}
-              >
-                Close
               </Button>
             </DialogFooter>
           </div>
