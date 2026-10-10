@@ -36,13 +36,21 @@ async function start() {
   if (!isProduction) {
     const vite = await createViteServer({
       configFile: path.resolve(process.cwd(), "vite.config.ts"),
-      server: { middlewareMode: true, host: "0.0.0.0", port: PORT, hmr: false },
+      server: { middlewareMode: true, host: "0.0.0.0", port: PORT, hmr: false, ws: false },
       appType: "spa",
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: "1y",
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      },
+    }));
     app.use((_req: Request, res: Response) => {
       res.sendFile(path.join(distPath, "index.html"));
     });

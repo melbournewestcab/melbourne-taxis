@@ -3,6 +3,28 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5" />
+    <script>
+      (function() {
+        function shouldSuppress(err) {
+          if (!err) return false;
+          var msg = (typeof err === "string" ? err : (err.message || err.toString() || "")).toLowerCase();
+          var stack = (err.stack || "").toLowerCase();
+          return msg.indexOf("websocket") !== -1 || msg.indexOf("vite") !== -1 || stack.indexOf("@vite/client") !== -1;
+        }
+        window.addEventListener("unhandledrejection", function (event) {
+          if (shouldSuppress(event.reason)) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+          }
+        }, true);
+        window.addEventListener("error", function (event) {
+          if (shouldSuppress(event.error) || shouldSuppress(event.message)) {
+            event.preventDefault();
+            if (typeof event.stopImmediatePropagation === "function") event.stopImmediatePropagation();
+          }
+        }, true);
+      })();
+    </script>
     <title>Melbourne Taxis | Taxi to Melbourne Airport &amp; 24/7 Melbourne Cab Booking | 0435 304 821</title>
     <meta name="description" content="Book a Taxi to Melbourne Airport (Tullamarine &amp; Avalon) and local cabs across Melbourne CBD, Bacchus Marsh, Melton, Werribee, Richmond, South Yarra &amp; all Melbourne suburbs. 24/7 fast dispatch, fixed fares &amp; Maxi Cabs. Call 0435 304 821." />
     <meta name="keywords" content="Taxi to Melbourne Airport, Taxi to Melbourne Airport Tullamarine, Taxi to Avalon Airport, Melbourne Airport Taxi, Melbourne Airport transfer, Taxi Melbourne CBD, Taxi Southbank, Taxi Docklands, Taxi Richmond, Taxi South Yarra, Taxi St Kilda, Taxi Carlton, Taxi Fitzroy, Taxi Bacchus Marsh, Taxi Melton, Taxi Werribee, Taxi Point Cook, Taxi Tarneit, Taxi Truganina, Taxi Footscray, Taxi Sunshine, Taxi Rockbank, Taxi Caroline Springs, Taxi Essendon, Taxi Tullamarine, Taxi Preston, Taxi Brunswick, Taxi Craigieburn, Taxi Box Hill, Taxi Doncaster, Taxi Ringwood, Taxi Glen Waverley, Taxi Brighton, Taxi Frankston, Taxi Dandenong, maxi taxi Melbourne, silver service taxi Melbourne, 24/7 taxi service Melbourne" />
@@ -38,7 +60,7 @@
     </noscript>
 
     <!-- Preload hero image with high fetchpriority -->
-    <link rel="preload" as="image" href="/images/hero-taxi.png" fetchpriority="high" />
+    <link rel="preload" as="image" href="/images/hero-taxi.jpg" fetchpriority="high" />
 
     <!-- Open Graph / Social -->
     <meta property="og:type" content="website" />

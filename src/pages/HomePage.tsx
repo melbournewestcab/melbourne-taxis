@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, lazy, Suspense } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -25,7 +25,7 @@ import {
   AccordionItem,
   AccordionTrigger,
 } from "@/components/ui/accordion";
-import { BookingForm } from "@/components/BookingForm";
+const BookingForm = lazy(() => import("@/components/BookingForm").then((m) => ({ default: m.BookingForm })));
 import { SUBURBS_DATA } from "@/data/suburbsData";
 import { SEO } from "@/components/SEO";
 
@@ -149,10 +149,11 @@ export default function HomePage() {
       <section className="relative min-h-[85vh] w-full flex items-center justify-center overflow-hidden bg-background py-16 md:py-24">
         <div className="absolute inset-0 z-0">
           <img
-            src="/images/hero-taxi.png"
+            src="/images/hero-taxi.jpg"
             alt="Melbourne Taxis cab driving through Melbourne"
             className="w-full h-full object-cover opacity-35"
             decoding="async"
+            {...({ fetchpriority: "high" } as any)}
           />
           <div className="absolute inset-0 bg-gradient-to-b from-background/90 via-background/60 to-background" />
         </div>
@@ -230,7 +231,14 @@ export default function HomePage() {
             </p>
             <div className="w-24 h-1.5 bg-primary mx-auto rounded-full mt-6" />
           </div>
-          <BookingForm />
+          <Suspense fallback={
+            <div className="w-full max-w-4xl mx-auto min-h-[380px] bg-card border border-border rounded-xl p-8 flex flex-col items-center justify-center animate-pulse">
+              <div className="w-8 h-8 rounded-full border-2 border-primary border-t-transparent animate-spin mb-4" />
+              <span className="text-sm font-bold uppercase tracking-wider text-muted-foreground">Loading Booking Calculator...</span>
+            </div>
+          }>
+            <BookingForm />
+          </Suspense>
         </div>
       </section>
 

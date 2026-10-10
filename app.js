@@ -951,7 +951,7 @@ var visitorLogsTable = pgTable("visitor_logs", {
 var { Pool } = pg;
 var pool = null;
 var db = null;
-if (process.env.DATABASE_URL) {
+if (process.env.DATABASE_URL && process.env.DATABASE_URL.startsWith("postgres")) {
   try {
     pool = new Pool({ connectionString: process.env.DATABASE_URL });
     db = drizzle(pool, { schema: schema_exports });
@@ -1584,13 +1584,21 @@ async function start() {
   if (!isProduction) {
     const vite = await createViteServer({
       configFile: path2.resolve(process.cwd(), "vite.config.ts"),
-      server: { middlewareMode: true, host: "0.0.0.0", port: PORT },
+      server: { middlewareMode: true, host: "0.0.0.0", port: PORT, hmr: false, ws: false },
       appType: "spa"
     });
     app.use(vite.middlewares);
   } else {
     const distPath = path2.resolve(process.cwd(), "dist");
-    app.use(express.static(distPath));
+    app.use(express.static(distPath, {
+      maxAge: "1y",
+      immutable: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+        }
+      }
+    }));
     app.use((_req, res) => {
       res.sendFile(path2.join(distPath, "index.html"));
     });

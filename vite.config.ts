@@ -11,6 +11,7 @@ export default defineConfig({
   ],
   server: {
     hmr: false,
+    ws: false,
   },
   resolve: {
     alias: {
@@ -26,6 +27,31 @@ export default defineConfig({
     outDir: path.resolve(process.cwd(), "dist"),
     emptyOutDir: true,
     rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (id.includes("node_modules")) {
+            if (id.includes("leaflet")) {
+              return "vendor-leaflet";
+            }
+            if (id.includes("@googlemaps")) {
+              return "vendor-maps";
+            }
+            if (id.includes("@tanstack")) {
+              return "vendor-query";
+            }
+            if (id.includes("lucide-react") || id.includes("react-icons")) {
+              return "vendor-icons";
+            }
+            if (id.includes("@radix-ui") || id.includes("class-variance-authority") || id.includes("tailwind-merge")) {
+              return "vendor-ui";
+            }
+            return "vendor";
+          }
+          if (id.includes("suburbsData")) {
+            return "suburbs-data";
+          }
+        },
+      },
       onwarn(warning, warn) {
         if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
           return;
