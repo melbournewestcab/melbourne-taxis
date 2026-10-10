@@ -37,6 +37,7 @@ export default defineConfig({
     minify: "esbuild",
     cssMinify: true,
     sourcemap: false,
+    modulePreload: false,
     outDir: path.resolve(process.cwd(), "dist"),
     emptyOutDir: true,
     rollupOptions: {

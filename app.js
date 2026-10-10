@@ -1606,12 +1606,12 @@ async function start() {
       immutable: true,
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
-          res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+          res.setHeader("Cache-Control", "public, max-age=0, s-maxage=3600, must-revalidate");
         }
       }
     }));
     app.use((_req, res) => {
-      res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      res.setHeader("Cache-Control", "public, max-age=0, s-maxage=3600, must-revalidate");
       res.sendFile(path2.join(distPath, "index.html"));
     });
   }
