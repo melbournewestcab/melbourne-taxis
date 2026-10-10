@@ -158,12 +158,8 @@ export default function HomePage() {
         </div>
 
         <div className="relative z-10 container max-w-5xl mx-auto px-4 text-center">
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full bg-primary/10 border border-primary/40 text-xs md:text-sm font-black uppercase tracking-wider text-primary mb-6 shadow-sm">
-            <ShieldCheck className="w-4 h-4" /> 24/7 Melbourne Suburbs &amp; Airport Taxi Service
-          </div>
-
           <h1 className="text-4xl sm:text-6xl lg:text-7xl font-black text-white uppercase tracking-tight mb-6 leading-none">
-            Melbourne <span className="text-primary">Taxis &amp; Cabs</span>
+            Melbourne <span className="text-primary">Taxis</span>
           </h1>
           
           <p className="text-lg sm:text-xl md:text-2xl text-muted-foreground max-w-3xl mx-auto mb-10 font-medium leading-relaxed">

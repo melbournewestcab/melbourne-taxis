@@ -20,7 +20,7 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
         }
         fill="none"
         xmlns="http://www.w3.org/2000/svg"
-        aria-label="Melbourne Taxis &amp; Cabs"
+        aria-label="Melbourne Taxis"
       >
         <defs>
           {/* Subtle gradient matching theme primary */}
@@ -98,7 +98,7 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
           MELBOURNE
         </span>
         <span
-          className="font-black uppercase text-primary tracking-[0.14em]"
+          className="font-black uppercase text-primary tracking-[0.22em]"
           style={{
             fontSize:
               size === "sm"
@@ -109,7 +109,7 @@ export function BrandLogo({ className = "", size = "md" }: BrandLogoProps) {
             lineHeight: 1.15,
           }}
         >
-          TAXIS &amp; CABS
+          TAXIS
         </span>
       </div>
     </div>

@@ -22,5 +22,13 @@ export default defineConfig({
   build: {
     outDir: path.resolve(process.cwd(), "dist"),
     emptyOutDir: true,
+    rollupOptions: {
+      onwarn(warning, warn) {
+        if (warning.code === "MODULE_LEVEL_DIRECTIVE") {
+          return;
+        }
+        warn(warning);
+      },
+    },
   },
 });
