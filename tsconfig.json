@@ -15,7 +15,7 @@
     "types": ["node", "vite/client", "google.maps"],
     "baseUrl": ".",
     "paths": {
-      "@/*": ["src/*", "artifacts/bacchus-marsh-taxi/src/*"],
+      "@/*": ["src/*"],
       "@workspace/api-client-react": ["lib/api-client-react/src/index.ts"],
       "@workspace/api-zod": ["lib/api-zod/src/index.ts"],
       "@workspace/db": ["lib/db/src/index.ts"],
@@ -25,8 +25,7 @@
   "include": [
     "server.ts",
     "src/**/*",
-    "artifacts/bacchus-marsh-taxi/src/**/*",
-    "artifacts/api-server/src/**/*",
+    "api/**/*",
     "lib/api-client-react/src/**/*",
     "lib/api-zod/src/**/*",
     "lib/db/src/**/*"

@@ -3,7 +3,7 @@ import cors from "cors";
 import compression from "compression";
 import path from "path";
 import { createServer as createViteServer } from "vite";
-import apiRouter from "./artifacts/api-server/src/routes";
+import apiRouter from "./api/routes";
 
 const app = express();
 const PORT = Number(process.env.PORT) || 3000;

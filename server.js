@@ -11,10 +11,10 @@ import compression from "compression";
 import path2 from "path";
 import { createServer as createViteServer } from "vite";
 
-// artifacts/api-server/src/routes/index.ts
+// api/routes/index.ts
 import { Router as Router5 } from "express";
 
-// artifacts/api-server/src/routes/health.ts
+// api/routes/health.ts
 import { Router } from "express";
 
 // lib/api-zod/src/generated/api.ts
@@ -97,7 +97,7 @@ var EstimateFareResponse = zod.object({
   tollRoads: zod.array(zod.string())
 });
 
-// artifacts/api-server/src/routes/health.ts
+// api/routes/health.ts
 var router = Router();
 router.get("/healthz", (_req, res) => {
   const data = HealthCheckResponse.parse({ status: "ok" });
@@ -105,7 +105,7 @@ router.get("/healthz", (_req, res) => {
 });
 var health_default = router;
 
-// artifacts/api-server/src/routes/bookings.ts
+// api/routes/bookings.ts
 import { Router as Router2 } from "express";
 import fs from "fs";
 import path from "path";
@@ -923,7 +923,7 @@ router2.post("/estimate", (req, res) => {
 });
 var bookings_default = router2;
 
-// artifacts/api-server/src/routes/visitors.ts
+// api/routes/visitors.ts
 import { Router as Router3 } from "express";
 
 // lib/db/src/index.ts
@@ -1022,7 +1022,7 @@ if (!db) {
   };
 }
 
-// artifacts/api-server/src/routes/visitors.ts
+// api/routes/visitors.ts
 import { desc, count, sql } from "drizzle-orm";
 var router3 = Router3();
 var ADMIN_SECRET = process.env.VISITOR_SECRET || "bmt-admin-2024";
@@ -1083,7 +1083,7 @@ router3.get("/", async (req, res) => {
 });
 var visitors_default = router3;
 
-// artifacts/api-server/src/routes/routes.ts
+// api/routes/routes.ts
 import { Router as Router4 } from "express";
 var router4 = Router4();
 var GOOGLE_API_KEY = process.env.GOOGLE_MAPS_API_KEY || process.env.VITE_GOOGLE_MAPS_API_KEY || "AIzaSyAdFaQS_OS7xD6QkUcvQvCFMIE2UvwG0PQ";
@@ -1552,7 +1552,7 @@ router4.get("/reverse-geocode", async (req, res) => {
 });
 var routes_default = router4;
 
-// artifacts/api-server/src/routes/index.ts
+// api/routes/index.ts
 var router5 = Router5();
 router5.use(health_default);
 router5.use("/bookings", bookings_default);

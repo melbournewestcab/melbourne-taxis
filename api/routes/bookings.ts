@@ -2,7 +2,7 @@ import { Router } from "express";
 import fs from "fs";
 import path from "path";
 import nodemailer from "nodemailer";
-import { CreateBookingBody, EstimateFareBody } from "../../../../lib/api-zod/src";
+import { CreateBookingBody, EstimateFareBody } from "../../lib/api-zod/src";
 
 const router = Router();
 
