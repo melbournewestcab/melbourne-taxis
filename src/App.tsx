@@ -6,7 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { Navbar } from "@/components/Navbar";
 import { Footer } from "@/components/Footer";
 import { FloatingContact } from "@/components/FloatingContact";
-import HomePage from "@/pages/HomePage";
+const HomePage = lazy(() => import("@/pages/HomePage"));
 
 const NotFound = lazy(() => import("@/pages/not-found"));
 const ServicesPage = lazy(() => import("@/pages/ServicesPage"));
@@ -102,15 +102,22 @@ function ScrollToTop() {
 function VisitorTracker() {
   const [location] = useLocation();
   useEffect(() => {
-    fetch("/api/visitors/track", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        page: window.location.pathname,
-        referrer: document.referrer,
-        userAgent: navigator.userAgent,
-      }),
-    }).catch(() => {});
+    const track = () => {
+      fetch("/api/visitors/track", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          page: window.location.pathname,
+          referrer: document.referrer,
+          userAgent: navigator.userAgent,
+        }),
+      }).catch(() => {});
+    };
+    if (typeof window !== "undefined" && "requestIdleCallback" in window) {
+      (window as any).requestIdleCallback(track);
+    } else {
+      setTimeout(track, 2000);
+    }
   }, [location]);
   return null;
 }

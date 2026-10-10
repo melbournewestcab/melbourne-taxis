@@ -42,6 +42,18 @@ async function start() {
     app.use(vite.middlewares);
   } else {
     const distPath = path.resolve(process.cwd(), "dist");
+    const publicPath = path.resolve(process.cwd(), "public");
+
+    app.use("/assets", express.static(path.join(distPath, "assets"), {
+      maxAge: "1y",
+      immutable: true,
+      etag: true,
+    }));
+    app.use("/images", express.static(path.join(publicPath, "images"), {
+      maxAge: "1y",
+      immutable: true,
+      etag: true,
+    }));
     app.use(express.static(distPath, {
       maxAge: "1y",
       immutable: true,

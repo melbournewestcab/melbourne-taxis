@@ -23,7 +23,20 @@ export default defineConfig({
     },
     dedupe: ["react", "react-dom"],
   },
+  optimizeDeps: {
+    esbuildOptions: {
+      target: "esnext",
+    },
+  },
+  esbuild: {
+    drop: ["console", "debugger"],
+    legalComments: "none",
+  },
   build: {
+    target: "esnext",
+    minify: "esbuild",
+    cssMinify: true,
+    sourcemap: false,
     outDir: path.resolve(process.cwd(), "dist"),
     emptyOutDir: true,
     rollupOptions: {
