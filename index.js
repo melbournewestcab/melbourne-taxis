@@ -1592,21 +1592,29 @@ async function start() {
     const distPath = path2.resolve(process.cwd(), "dist");
     const publicPath = path2.resolve(process.cwd(), "public");
     app.use("/assets", express.static(path2.join(distPath, "assets"), {
-      maxAge: "1y",
+      maxAge: 31536e6,
       immutable: true,
-      etag: true
+      etag: true,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
     }));
     app.use("/images", express.static(path2.join(publicPath, "images"), {
-      maxAge: "1y",
+      maxAge: 31536e6,
       immutable: true,
-      etag: true
+      etag: true,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      }
     }));
     app.use(express.static(distPath, {
-      maxAge: "1y",
+      maxAge: 31536e6,
       immutable: true,
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "public, max-age=0, s-maxage=3600, must-revalidate");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
       }
     }));

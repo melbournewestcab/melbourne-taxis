@@ -45,21 +45,29 @@ async function start() {
     const publicPath = path.resolve(process.cwd(), "public");
 
     app.use("/assets", express.static(path.join(distPath, "assets"), {
-      maxAge: "1y",
+      maxAge: 31536000000,
       immutable: true,
       etag: true,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
     }));
     app.use("/images", express.static(path.join(publicPath, "images"), {
-      maxAge: "1y",
+      maxAge: 31536000000,
       immutable: true,
       etag: true,
+      setHeaders: (res) => {
+        res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
+      },
     }));
     app.use(express.static(distPath, {
-      maxAge: "1y",
+      maxAge: 31536000000,
       immutable: true,
       setHeaders: (res, filePath) => {
         if (filePath.endsWith(".html")) {
           res.setHeader("Cache-Control", "public, max-age=0, s-maxage=3600, must-revalidate");
+        } else {
+          res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
         }
       },
     }));

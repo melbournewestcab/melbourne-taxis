@@ -3,11 +3,24 @@ import react from "@vitejs/plugin-react";
 import tailwindcss from "@tailwindcss/vite";
 import path from "path";
 
+function nonBlockingCss() {
+  return {
+    name: "non-blocking-css",
+    transformIndexHtml(html) {
+      return html.replace(
+        /<link rel="stylesheet" crossorigin href="(\/assets\/[^"]+\.css)">/g,
+        '<link rel="preload" as="style" href="$1"><link rel="stylesheet" href="$1" media="print" onload="this.media=\'all\'"><noscript><link rel="stylesheet" href="$1"></noscript>'
+      );
+    },
+  };
+}
+
 export default defineConfig({
   root: process.cwd(),
   plugins: [
     react(),
     tailwindcss(),
+    nonBlockingCss(),
   ],
   server: {
     hmr: false,
